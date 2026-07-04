@@ -1,0 +1,27 @@
+{
+  "name": "gla-smart-maintenance",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo base para GLA Smart Maintenance.",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @gla-smart-maintenance/web",
+    "build": "npm run build --workspace @gla-smart-maintenance/web",
+    "start": "npm run start --workspace @gla-smart-maintenance/web",
+    "lint": "npm run lint --workspace @gla-smart-maintenance/web",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test --workspace @gla-smart-maintenance/web",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "prettier": "^3.4.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
