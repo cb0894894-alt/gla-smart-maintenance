@@ -21,3 +21,18 @@
 body {
   @apply bg-background text-foreground antialiased;
 }
+
+.field {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(2 6 23 / 0.7);
+  padding: 0.625rem 0.75rem;
+  color: white;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.field:focus {
+  border-color: hsl(var(--primary));
+}

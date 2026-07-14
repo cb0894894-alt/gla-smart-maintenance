@@ -83,7 +83,15 @@ export default function DashboardPage() {
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
           <Card className="bg-white/[0.04]">
             <CardHeader>
-              <CardTitle>Órdenes de trabajo prioritarias</CardTitle>
+              <CardTitle className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                Órdenes de trabajo prioritarias
+                <a
+                  className="rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+                  href="/reportar-falla"
+                >
+                  Reportar falla
+                </a>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {workOrders.map((order) => (
