@@ -16,6 +16,7 @@
 const SHEET_ACTIVOS = "ACT_Activos";
 const SHEET_OT = "OT_OrdenesTrabajo";
 const SHEET_PM = "PM_Preventivos";
+const OPERATIONAL_TIME_ZONE = "America/Mazatlan";
 const OT_HEADERS = [
   "Folio",
   "FechaHoraReporte",
@@ -202,7 +203,7 @@ function createPreventivePlan_(payload) {
 
   const sheet = getSheet_(SHEET_PM);
   ensureHeaders_(sheet, PM_HEADERS, SHEET_PM);
-  const lastExecution = new Date(payload.ultimaEjecucion);
+  const lastExecution = formatCalendarDate_(payload.ultimaEjecucion);
   const nextExecution = calculateNextExecution_(
     lastExecution,
     Number(payload.frecuencia),
@@ -259,7 +260,7 @@ function registerPreventiveExecution_(payload) {
   const rowNumber = rowIndex + 1;
   const frequency = Number(values[rowIndex][headers.indexOf("Frecuencia")]);
   const unit = String(values[rowIndex][headers.indexOf("UnidadFrecuencia")]);
-  const executionDate = new Date(payload.fechaEjecucion);
+  const executionDate = formatCalendarDate_(payload.fechaEjecucion);
   const nextExecution = calculateNextExecution_(executionDate, frequency, unit);
 
   sheet
@@ -290,10 +291,8 @@ function registerPreventiveExecution_(payload) {
   };
 }
 
-function calculateNextExecution_(date, frequency, unit) {
-  if (!(date instanceof Date) || isNaN(date.getTime())) {
-    throw new Error("Fecha de ejecución inválida.");
-  }
+function calculateNextExecution_(dateValue, frequency, unit) {
+  const date = parseCalendarDate_(dateValue);
   if (!frequency || frequency < 1) throw new Error("Frecuencia inválida.");
 
   const next = new Date(date.getTime());
@@ -302,7 +301,32 @@ function calculateNextExecution_(date, frequency, unit) {
   else if (unit === "Meses") next.setMonth(next.getMonth() + frequency);
   else if (unit === "Años") next.setFullYear(next.getFullYear() + frequency);
   else throw new Error("UnidadFrecuencia no permitida: " + unit);
-  return next;
+  return formatCalendarDate_(next);
+}
+
+function parseCalendarDate_(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+
+  const match = String(value || "")
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) throw new Error("Fecha de ejecución inválida.");
+
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function formatCalendarDate_(value) {
+  return Utilities.formatDate(
+    parseCalendarDate_(value),
+    OPERATIONAL_TIME_ZONE,
+    "yyyy-MM-dd",
+  );
+}
+
+function isPmCalendarDateHeader_(header) {
+  return header === "UltimaEjecucion" || header === "ProximaEjecucion";
 }
 
 function nextPreventiveId_(sheet) {
@@ -350,7 +374,12 @@ function readSheetAsObjects_(sheetName) {
     })
     .map(function (row) {
       return headers.reduce(function (record, header, index) {
-        record[header] = row[index];
+        record[header] =
+          sheetName === SHEET_PM &&
+          isPmCalendarDateHeader_(header) &&
+          row[index]
+            ? formatCalendarDate_(row[index])
+            : row[index];
         return record;
       }, {});
     });

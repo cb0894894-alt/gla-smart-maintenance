@@ -4,6 +4,7 @@ import {
   filterPreventivePlans,
   getPreventiveIndicators,
   parsePreventivePlansResponse,
+  toCalendarDate,
 } from "./google-sheets";
 
 const basePlan = {
@@ -67,6 +68,24 @@ describe("preventive maintenance google sheets helpers", () => {
         instrucciones: "Aplicar grasa",
       },
     ]);
+  });
+
+  it("keeps calendar dates stable without UTC day shifts", () => {
+    expect(toCalendarDate("2026-07-14")).toBe("2026-07-14");
+    expect(toCalendarDate("2026-07-14T00:00:00.000Z")).toBe("2026-07-14");
+    expect(calculateNextExecution("2026-07-14", 1, "Días")).toBe("2026-07-15");
+    expect(
+      parsePreventivePlansResponse([
+        {
+          IdPM: "PM-00003",
+          UltimaEjecucion: "2026-07-14T00:00:00.000Z",
+          ProximaEjecucion: "2026-07-21T00:00:00.000Z",
+        },
+      ])[0],
+    ).toMatchObject({
+      ultimaEjecucion: "2026-07-14",
+      proximaEjecucion: "2026-07-21",
+    });
   });
 
   it("calculates next execution by unit", () => {

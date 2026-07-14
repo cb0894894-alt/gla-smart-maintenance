@@ -102,6 +102,31 @@ function normalizeKey(key: string) {
     .trim();
 }
 
+const CALENDAR_DATE_FIELDS = new Set<keyof PreventivePlan>([
+  "ultimaEjecucion",
+  "proximaEjecucion",
+]);
+
+const CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})/;
+
+export function toCalendarDate(value: unknown) {
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const text = String(value).trim();
+    const match = text.match(CALENDAR_DATE_PATTERN);
+    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+    return text;
+  }
+
+  return "";
+}
+
 function readField(
   record: Record<string, unknown>,
   field: keyof PreventivePlan,
@@ -111,6 +136,7 @@ function readField(
     aliases.includes(normalizeKey(key)),
   );
   const value = sourceKey ? record[sourceKey] : undefined;
+  if (CALENDAR_DATE_FIELDS.has(field)) return toCalendarDate(value);
   if (value instanceof Date) return value.toISOString();
   return typeof value === "string" || typeof value === "number"
     ? String(value).trim()
@@ -134,20 +160,21 @@ export function calculateNextExecution(
   frequency: number,
   unit: string,
 ) {
-  const date = new Date(`${dateValue}T00:00:00`);
-  if (
-    Number.isNaN(date.getTime()) ||
-    !Number.isFinite(frequency) ||
-    frequency < 1
-  )
-    return "";
-  const next = new Date(date);
+  const calendarDate = toCalendarDate(dateValue);
+  const match = calendarDate.match(CALENDAR_DATE_PATTERN);
+  if (!match || !Number.isFinite(frequency) || frequency < 1) return "";
+
+  const next = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
   if (unit === "Días") next.setDate(next.getDate() + frequency);
   else if (unit === "Semanas") next.setDate(next.getDate() + frequency * 7);
   else if (unit === "Meses") next.setMonth(next.getMonth() + frequency);
   else if (unit === "Años") next.setFullYear(next.getFullYear() + frequency);
   else return "";
-  return next.toISOString().slice(0, 10);
+  return toCalendarDate(next);
 }
 
 export function parsePreventivePlansResponse(data: unknown): PreventivePlan[] {
@@ -239,8 +266,14 @@ function isDateInRange(
   max: Date,
   beforeMax = false,
 ) {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return false;
+  const calendarDate = toCalendarDate(value);
+  const match = calendarDate.match(CALENDAR_DATE_PATTERN);
+  if (!match) return false;
+  const date = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
   if (beforeMax) return date < max;
   return (!min || date >= min) && date <= max;
 }
@@ -270,6 +303,7 @@ export async function createPreventivePlan(input: CreatePreventivePlanInput) {
     body: JSON.stringify({
       accion: "crearPreventivo",
       ...input,
+      ultimaEjecucion: toCalendarDate(input.ultimaEjecucion),
       tarea: input.tarea.trim(),
       responsable: input.responsable.trim(),
       observaciones: input.observaciones?.trim() || "",
@@ -297,7 +331,7 @@ export async function registerPreventiveExecution(
     body: JSON.stringify({
       accion: "registrarEjecucionPreventivo",
       idPM: input.idPM,
-      fechaEjecucion: input.fechaEjecucion,
+      fechaEjecucion: toCalendarDate(input.fechaEjecucion),
       observaciones: input.observaciones?.trim() || "",
     }),
   });
