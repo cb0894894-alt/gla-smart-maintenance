@@ -318,11 +318,25 @@ function parseCalendarDate_(value) {
 }
 
 function formatCalendarDate_(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, OPERATIONAL_TIME_ZONE, "yyyy-MM-dd");
+  }
+
   return Utilities.formatDate(
     parseCalendarDate_(value),
     OPERATIONAL_TIME_ZONE,
     "yyyy-MM-dd",
   );
+}
+
+function safeFormatCalendarDate_(value) {
+  if (value === "" || value === null || typeof value === "undefined") return "";
+
+  try {
+    return formatCalendarDate_(value);
+  } catch {
+    return "";
+  }
 }
 
 function isPmCalendarDateHeader_(header) {
@@ -375,10 +389,8 @@ function readSheetAsObjects_(sheetName) {
     .map(function (row) {
       return headers.reduce(function (record, header, index) {
         record[header] =
-          sheetName === SHEET_PM &&
-          isPmCalendarDateHeader_(header) &&
-          row[index]
-            ? formatCalendarDate_(row[index])
+          sheetName === SHEET_PM && isPmCalendarDateHeader_(header)
+            ? safeFormatCalendarDate_(row[index])
             : row[index];
         return record;
       }, {});
