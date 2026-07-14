@@ -41,7 +41,9 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith("https://example.test/api?accion=activos");
+      expect(fetch).toHaveBeenCalledWith(
+        "https://example.test/api?accion=activos",
+      );
     });
   });
 });

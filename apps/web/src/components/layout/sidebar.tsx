@@ -10,12 +10,20 @@ import {
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { label: "Activos", icon: Boxes },
-  { label: "Órdenes de trabajo", icon: ClipboardList },
-  { label: "Mantenimiento Preventivo", icon: ShieldCheck },
-  { label: "Inventario", icon: Package },
-  { label: "Historial", icon: History },
-  { label: "Indicadores", icon: Gauge },
+  { label: "Activos", icon: Boxes, href: "/activos" },
+  {
+    label: "Órdenes de trabajo",
+    icon: ClipboardList,
+    href: "/#órdenes-de-trabajo",
+  },
+  {
+    label: "Mantenimiento Preventivo",
+    icon: ShieldCheck,
+    href: "/#mantenimiento-preventivo",
+  },
+  { label: "Inventario", icon: Package, href: "/#inventario" },
+  { label: "Historial", icon: History, href: "/#historial" },
+  { label: "Indicadores", icon: Gauge, href: "/#indicadores" },
 ];
 
 export function Sidebar() {
@@ -34,7 +42,7 @@ export function Sidebar() {
         {navigation.map((item, index) => (
           <a
             key={item.label}
-            href={`#${item.label.toLowerCase().replaceAll(" ", "-")}`}
+            href={item.href}
             className={cn(
               "flex min-w-fit items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-muted-foreground transition hover:bg-white/10 hover:text-white",
               index === 0 && "bg-primary/15 text-primary",
