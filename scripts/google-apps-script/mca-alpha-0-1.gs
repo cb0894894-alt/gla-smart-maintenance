@@ -1,14 +1,14 @@
 /**
  * Google Apps Script Web App contract for MCA Alpha 0.1.
  * Supported actions:
- * - GET  ?accion=activos: returns rows from sheet "Activos" as JSON objects.
+ * - GET  ?accion=activos: returns rows from sheet "ACT_Activos" as JSON objects.
  * - POST { accion: "crearOrdenTrabajo", ... }: appends a row to "OT_OrdenesTrabajo".
  *
  * Expected OT_OrdenesTrabajo columns:
  * Folio, FechaHoraReporte, CodigoActivo, Activo, Area, Criticidad, Reporta,
  * DescripcionFalla, Prioridad, CondicionEquipo, Observaciones, Estado, Origen
  */
-const SHEET_ACTIVOS = "Activos";
+const SHEET_ACTIVOS = "ACT_Activos";
 const SHEET_OT = "OT_OrdenesTrabajo";
 const OT_HEADERS = [
   "Folio",
