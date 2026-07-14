@@ -1,11 +1,30 @@
+"use client";
+
 import type React from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, TrendingUp } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { inventory, modules, workOrders } from "@/data/mock";
 
+type Asset = {
+  estado?: string;
+};
+
 export default function DashboardPage() {
+  const [assets, setAssets] = useState<Asset[]>([]);
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}?accion=activos`)
+      .then((response) => response.json())
+      .then((data) => setAssets(data));
+  }, []);
+
+  const operatingAssets = assets.filter(
+    (asset) => asset.estado === "Operando",
+  ).length;
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(20,184,166,0.24),_transparent_32rem)] md:flex">
       <Sidebar />
@@ -31,26 +50,34 @@ export default function DashboardPage() {
         </header>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {modules.map((module) => (
-            <Card
-              id={module.name.toLowerCase().replaceAll(" ", "-")}
-              key={module.name}
-              className="bg-white/[0.04] transition hover:-translate-y-1 hover:bg-white/[0.07]"
-            >
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  {module.name}
-                  <Badge className="text-primary">{module.status}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-4xl font-black">{module.value}</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {module.trend}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+          {modules.map((module) => {
+            const isAssetsModule = module.name === "Activos";
+
+            return (
+              <Card
+                id={module.name.toLowerCase().replaceAll(" ", "-")}
+                key={module.name}
+                className="bg-white/[0.04] transition hover:-translate-y-1 hover:bg-white/[0.07]"
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    {module.name}
+                    <Badge className="text-primary">{module.status}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-4xl font-black">
+                    {isAssetsModule ? assets.length : module.value}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {isAssetsModule
+                      ? `${operatingAssets} equipos Operando`
+                      : module.trend}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
