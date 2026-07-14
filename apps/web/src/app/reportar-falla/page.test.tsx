@@ -1,5 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FailureReportPage from "./page";
 
@@ -15,19 +16,42 @@ const assets = [
     estado: "Operando",
   },
 ];
+const mocks = vi.hoisted(() => ({
+  fetchAssets: vi.fn(),
+}));
+
+vi.mock("@/lib/assets/google-sheets", () => ({
+  fetchAssets: mocks.fetchAssets,
+}));
 
 describe("FailureReportPage", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_API_URL = "https://example.test/api";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => assets }),
-    );
+    mocks.fetchAssets.mockResolvedValue(assets);
+    vi.stubGlobal("fetch", vi.fn());
   });
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_API_URL = originalApiUrl;
     vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("renders a stable neutral automatic date on the server", () => {
+    const html = renderToString(<FailureReportPage />);
+
+    expect(html).toContain("Fecha y hora automática");
+    expect(html).toContain("Inicializando fecha y hora...");
+  });
+
+  it("initializes the automatic report date only after client mount", async () => {
+    render(<FailureReportPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Inicializando fecha y hora..."),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("shows clear validation messages for required fields", async () => {
@@ -50,17 +74,14 @@ describe("FailureReportPage", () => {
   });
 
   it("submits a valid report and confirms the generated folio", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => assets })
-      .mockResolvedValueOnce({
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
         ok: true,
-        json: async () => ({
-          ok: true,
-          folio: "OT-20260714-0001",
-          estado: "Abierta",
-        }),
-      });
+        folio: "OT-20260714-0001",
+        estado: "Abierta",
+      }),
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     render(<FailureReportPage />);
@@ -91,16 +112,13 @@ describe("FailureReportPage", () => {
   });
 
   it("shows an API error when Apps Script rejects the request", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => assets })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          ok: false,
-          error: "No existe la hoja OT_OrdenesTrabajo",
-        }),
-      });
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ok: false,
+        error: "No existe la hoja OT_OrdenesTrabajo",
+      }),
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     render(<FailureReportPage />);
