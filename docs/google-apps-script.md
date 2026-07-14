@@ -66,3 +66,9 @@ Desplegar una nueva versión de `scripts/google-apps-script/mca-alpha-0-1.gs` id
 3. En la app, abrir `/ordenes-trabajo`, buscar `OT-20260713-0001` y abrir su detalle. No presionar **Guardar estado** si no se desea alterar esa orden.
 4. Para probar actualización sin tocar la orden existente, crear primero una OT de prueba desde `/reportar-falla` usando un activo real y una descripción que incluya `PRUEBA`. Después actualizar solo esa OT de prueba a `Asignada`, `En proceso`, `En espera`, `Cancelada` o `Cerrada` con nota.
 5. Si se requiere una prueba completamente no destructiva, limitarse a los pasos de lectura y detalle; las acciones de actualización siempre escriben en la fila de la OT seleccionada.
+
+## Mantenimiento Preventivo Alpha 0.1
+
+La ruta `/mantenimiento-preventivo` consume datos reales de Google Sheets mediante `GET ?accion=preventivos` sobre la pestaña `PM_Preventivos`. La pestaña debe conservar exactamente estas columnas y en este orden: `IdPM`, `CodigoActivo`, `Activo`, `Area`, `Tarea`, `Frecuencia`, `UnidadFrecuencia`, `UltimaEjecucion`, `ProximaEjecucion`, `Responsable`, `Estado`, `Prioridad`, `DuracionEstimada`, `Instrucciones`, `Observaciones`, `FechaCreacion`, `FechaActualizacion`.
+
+El alta de planes usa `POST { accion: "crearPreventivo", ... }`, genera automáticamente `IdPM`, toma el activo desde `ACT_Activos` y calcula `ProximaEjecucion` a partir de `Frecuencia` y `UnidadFrecuencia`. El registro de ejecución usa `POST { accion: "registrarEjecucionPreventivo", idPM, fechaEjecucion, observaciones }` y actualiza únicamente `UltimaEjecucion`, `ProximaEjecucion`, `FechaActualizacion` y, si se captura texto, agrega observaciones sin borrar las existentes.
