@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { label: "Activos", icon: Boxes, href: "/activos" },
+  { label: "Reportar falla", icon: ClipboardList, href: "/reportar-falla" },
   {
     label: "Órdenes de trabajo",
     icon: ClipboardList,
