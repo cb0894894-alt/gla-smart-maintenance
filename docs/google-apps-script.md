@@ -4,12 +4,12 @@ El repositorio solo tenía consumo de `GET ?accion=activos`; esta versión agreg
 
 ## Acciones admitidas
 
-- `GET ?accion=activos`: devuelve los activos reales de la hoja `Activos`.
+- `GET ?accion=activos`: devuelve los activos reales de la hoja `ACT_Activos`.
 - `POST` con JSON `{ "accion": "crearOrdenTrabajo", ... }`: crea una fila en `OT_OrdenesTrabajo` y responde `{ "ok": true, "folio": "OT-YYYYMMDD-0001", "estado": "Abierta" }`.
 
 ## Estructura requerida de `OT_OrdenesTrabajo`
 
-La hoja debe existir con estos encabezados en la fila 1, en este orden:
+La hoja debe existir. Si está vacía, el script crea exactamente estos encabezados en la fila 1 al procesar la primera orden; si ya tiene encabezados, deben estar en este orden:
 
 1. `Folio`
 2. `FechaHoraReporte`
@@ -30,7 +30,7 @@ La hoja debe existir con estos encabezados en la fila 1, en este orden:
 1. Abrir el spreadsheet operativo de GLA Smart Maintenance.
 2. Ir a **Extensiones → Apps Script**.
 3. Copiar el contenido de `scripts/google-apps-script/mca-alpha-0-1.gs` en el proyecto de Apps Script vinculado.
-4. Confirmar que existen las hojas `Activos` y `OT_OrdenesTrabajo` y que `OT_OrdenesTrabajo` tiene los encabezados anteriores.
+4. Confirmar que existen las hojas `ACT_Activos` y `OT_OrdenesTrabajo`. Si `OT_OrdenesTrabajo` está vacía, el script creará los encabezados anteriores al procesar la primera orden; si ya tiene encabezados, deben coincidir exactamente.
 5. Publicar con **Implementar → Nueva implementación → Aplicación web**.
 6. Usar acceso compatible con la operación del equipo y copiar la URL de la aplicación web.
 7. Configurar `NEXT_PUBLIC_API_URL` en la aplicación web con esa URL.
