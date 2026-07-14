@@ -7,3 +7,8 @@ coverage
 !.env.example
 .DS_Store
 *.log
+
+# Build artifacts
+apps/web/public/sw.js
+apps/web/public/workbox-*.js
+*.tsbuildinfo
