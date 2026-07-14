@@ -12,13 +12,53 @@ type Asset = {
   estado?: string;
 };
 
+function getAssetsApiUrl() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!apiUrl) {
+    console.error("NEXT_PUBLIC_API_URL is not configured.");
+    return null;
+  }
+
+  const url = new URL(apiUrl);
+  url.searchParams.set("accion", "activos");
+
+  return url.toString();
+}
+
+function parseAssetsResponse(data: unknown): Asset[] {
+  if (!Array.isArray(data)) {
+    console.error("Unexpected assets response format.", data);
+    return [];
+  }
+
+  return data.filter((asset): asset is Asset => {
+    return typeof asset === "object" && asset !== null;
+  });
+}
+
 export default function DashboardPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}?accion=activos`)
-      .then((response) => response.json())
-      .then((data) => setAssets(data));
+    const assetsApiUrl = getAssetsApiUrl();
+
+    if (!assetsApiUrl) {
+      return;
+    }
+
+    fetch(assetsApiUrl)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Assets API responded with ${response.status}`);
+        }
+
+        return response.json();
+      })
+      .then((data: unknown) => setAssets(parseAssetsResponse(data)))
+      .catch((error: unknown) => {
+        console.error("Unable to load assets from Google Sheets.", error);
+      });
   }, []);
 
   const operatingAssets = assets.filter(
