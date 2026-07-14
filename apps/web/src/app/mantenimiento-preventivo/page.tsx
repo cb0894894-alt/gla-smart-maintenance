@@ -16,13 +16,21 @@ import {
   PM_PRIORITIES,
   PM_STATUSES,
   registerPreventiveExecution,
+  toCalendarDate,
   type PreventiveMaintenanceFrequencyUnit,
   type PreventiveMaintenancePriority,
   type PreventivePlan,
 } from "@/lib/preventive-maintenance/google-sheets";
 
 const PAGE_SIZE = 25;
-const today = () => new Date().toISOString().slice(0, 10);
+const MAZATLAN_TIME_ZONE = "America/Mazatlan";
+const today = () =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: MAZATLAN_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 
 export default function PreventiveMaintenancePage() {
   const [plans, setPlans] = useState<PreventivePlan[]>([]),
@@ -533,9 +541,8 @@ function Message({ tone, text }: { tone: "error" | "success"; text: string }) {
   );
 }
 function formatDate(value: string) {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString("es-MX");
+  const calendarDate = toCalendarDate(value);
+  const match = calendarDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return calendarDate || "—";
+  return `${match[3]}/${match[2]}/${match[1]}`;
 }
