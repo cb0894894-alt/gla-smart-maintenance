@@ -35,16 +35,21 @@ export default function FailureReportPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoadingAssets, setIsLoadingAssets] = useState(true);
   const [assetError, setAssetError] = useState<string | null>(null);
-  const [form, setForm] = useState<FailureReportInput>({
-    ...initialForm,
-    reportedAt: new Date().toISOString(),
-  });
+  const [form, setForm] = useState<FailureReportInput>(initialForm);
   const [errors, setErrors] = useState<
     Partial<Record<keyof FailureReportInput, string>>
   >({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [folio, setFolio] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm((current) =>
+      current.reportedAt
+        ? current
+        : { ...current, reportedAt: new Date().toISOString() },
+    );
+  }, []);
 
   useEffect(() => {
     fetchAssets()
@@ -172,7 +177,11 @@ export default function FailureReportPage() {
                 </Field>
                 <ReadOnly
                   label="Fecha y hora automática"
-                  value={new Date(form.reportedAt).toLocaleString("es-MX")}
+                  value={
+                    form.reportedAt
+                      ? new Date(form.reportedAt).toLocaleString("es-MX")
+                      : "Inicializando fecha y hora..."
+                  }
                 />
                 <ReadOnly label="Código" value={selectedAsset?.codigo || "—"} />
                 <ReadOnly label="Área" value={selectedAsset?.area || "—"} />
