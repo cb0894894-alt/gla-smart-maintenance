@@ -7,18 +7,17 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { inventory, modules, workOrders } from "@/data/mock";
-
-type Asset = {
-  estado?: string;
-};
+import { fetchAssets, type Asset } from "@/lib/assets";
 
 export default function DashboardPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}?accion=activos`)
-      .then((response) => response.json())
-      .then((data) => setAssets(data));
+    fetchAssets()
+      .then(setAssets)
+      .catch((error: unknown) => {
+        console.error("Unable to load assets from Google Sheets.", error);
+      });
   }, []);
 
   const operatingAssets = assets.filter(
@@ -38,8 +37,8 @@ export default function DashboardPage() {
               Centro de mantenimiento inteligente
             </h2>
             <p className="mt-3 max-w-2xl text-muted-foreground">
-              Monitorea activos, órdenes, inventario e indicadores con datos
-              simulados para arrancar el producto inmediatamente.
+              Monitorea activos con datos reales de Google Sheets y conserva los
+              demás módulos como vistas operativas de referencia.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
