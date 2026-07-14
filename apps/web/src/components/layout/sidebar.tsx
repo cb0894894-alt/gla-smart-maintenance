@@ -20,7 +20,7 @@ const navigation = [
   {
     label: "Mantenimiento Preventivo",
     icon: ShieldCheck,
-    href: "/#mantenimiento-preventivo",
+    href: "/mantenimiento-preventivo",
   },
   { label: "Inventario", icon: Package, href: "/#inventario" },
   { label: "Historial", icon: History, href: "/#historial" },

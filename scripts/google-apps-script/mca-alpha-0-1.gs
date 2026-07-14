@@ -5,6 +5,9 @@
  * - GET  ?accion=ordenesTrabajo: returns rows from sheet "OT_OrdenesTrabajo".
  * - POST { accion: "crearOrdenTrabajo", ... }: appends a row to "OT_OrdenesTrabajo".
  * - POST { accion: "actualizarEstadoOrdenTrabajo", folio, estado, notaCierre? }: updates only Estado.
+ * - GET  ?accion=preventivos: returns rows from sheet "PM_Preventivos".
+ * - POST { accion: "crearPreventivo", ... }: appends a preventive plan to "PM_Preventivos".
+ * - POST { accion: "registrarEjecucionPreventivo", idPM, fechaEjecucion }: updates UltimaEjecucion and ProximaEjecucion.
  *
  * Expected OT_OrdenesTrabajo columns:
  * Folio, FechaHoraReporte, CodigoActivo, Activo, Area, Criticidad, Reporta,
@@ -12,6 +15,7 @@
  */
 const SHEET_ACTIVOS = "ACT_Activos";
 const SHEET_OT = "OT_OrdenesTrabajo";
+const SHEET_PM = "PM_Preventivos";
 const OT_HEADERS = [
   "Folio",
   "FechaHoraReporte",
@@ -27,6 +31,25 @@ const OT_HEADERS = [
   "Estado",
   "Origen",
 ];
+const PM_HEADERS = [
+  "IdPM",
+  "CodigoActivo",
+  "Activo",
+  "Area",
+  "Tarea",
+  "Frecuencia",
+  "UnidadFrecuencia",
+  "UltimaEjecucion",
+  "ProximaEjecucion",
+  "Responsable",
+  "Estado",
+  "Prioridad",
+  "DuracionEstimada",
+  "Instrucciones",
+  "Observaciones",
+  "FechaCreacion",
+  "FechaActualizacion",
+];
 
 function doGet(e) {
   const accion = e && e.parameter ? e.parameter.accion : "";
@@ -37,6 +60,10 @@ function doGet(e) {
 
   if (accion === "ordenesTrabajo") {
     return jsonResponse(readSheetAsObjects_(SHEET_OT));
+  }
+
+  if (accion === "preventivos") {
+    return jsonResponse(readSheetAsObjects_(SHEET_PM));
   }
 
   return jsonResponse({ ok: false, error: "Accion no soportada." });
@@ -52,6 +79,14 @@ function doPost(e) {
 
     if (payload.accion === "actualizarEstadoOrdenTrabajo") {
       return jsonResponse(updateWorkOrderStatus_(payload));
+    }
+
+    if (payload.accion === "crearPreventivo") {
+      return jsonResponse(createPreventivePlan_(payload));
+    }
+
+    if (payload.accion === "registrarEjecucionPreventivo") {
+      return jsonResponse(registerPreventiveExecution_(payload));
     }
 
     return jsonResponse({ ok: false, error: "Accion no soportada." });
@@ -153,6 +188,133 @@ function updateWorkOrderStatus_(payload) {
   return { ok: true, folio: payload.folio, estado: payload.estado };
 }
 
+function createPreventivePlan_(payload) {
+  validateRequired_(payload, [
+    "assetCode",
+    "assetName",
+    "tarea",
+    "frecuencia",
+    "unidadFrecuencia",
+    "ultimaEjecucion",
+    "responsable",
+    "prioridad",
+  ]);
+
+  const sheet = getSheet_(SHEET_PM);
+  ensureHeaders_(sheet, PM_HEADERS, SHEET_PM);
+  const lastExecution = new Date(payload.ultimaEjecucion);
+  const nextExecution = calculateNextExecution_(
+    lastExecution,
+    Number(payload.frecuencia),
+    String(payload.unidadFrecuencia),
+  );
+  const now = new Date();
+  const idPM = nextPreventiveId_(sheet);
+
+  sheet.appendRow([
+    idPM,
+    payload.assetCode,
+    payload.assetName,
+    payload.assetArea || "",
+    payload.tarea,
+    Number(payload.frecuencia),
+    payload.unidadFrecuencia,
+    lastExecution,
+    nextExecution,
+    payload.responsable,
+    "Activo",
+    payload.prioridad,
+    payload.duracionEstimada || "",
+    payload.instrucciones || "",
+    payload.observaciones || "",
+    now,
+    now,
+  ]);
+
+  return {
+    ok: true,
+    idPM: idPM,
+    estado: "Activo",
+    proximaEjecucion: nextExecution,
+  };
+}
+
+function registerPreventiveExecution_(payload) {
+  validateRequired_(payload, ["idPM", "fechaEjecucion"]);
+
+  const sheet = getSheet_(SHEET_PM);
+  ensureHeaders_(sheet, PM_HEADERS, SHEET_PM);
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const idIndex = headers.indexOf("IdPM");
+  const rowIndex = values.findIndex(function (row, index) {
+    return (
+      index > 0 && String(row[idIndex]).trim() === String(payload.idPM).trim()
+    );
+  });
+
+  if (rowIndex === -1)
+    throw new Error("No existe el preventivo " + payload.idPM);
+
+  const rowNumber = rowIndex + 1;
+  const frequency = Number(values[rowIndex][headers.indexOf("Frecuencia")]);
+  const unit = String(values[rowIndex][headers.indexOf("UnidadFrecuencia")]);
+  const executionDate = new Date(payload.fechaEjecucion);
+  const nextExecution = calculateNextExecution_(executionDate, frequency, unit);
+
+  sheet
+    .getRange(rowNumber, headers.indexOf("UltimaEjecucion") + 1)
+    .setValue(executionDate);
+  sheet
+    .getRange(rowNumber, headers.indexOf("ProximaEjecucion") + 1)
+    .setValue(nextExecution);
+  sheet
+    .getRange(rowNumber, headers.indexOf("FechaActualizacion") + 1)
+    .setValue(new Date());
+
+  const notes = String(payload.observaciones || "").trim();
+  if (notes) {
+    const currentNotes = String(
+      values[rowIndex][headers.indexOf("Observaciones")] || "",
+    ).trim();
+    sheet
+      .getRange(rowNumber, headers.indexOf("Observaciones") + 1)
+      .setValue(currentNotes ? currentNotes + "\n" + notes : notes);
+  }
+
+  return {
+    ok: true,
+    idPM: payload.idPM,
+    ultimaEjecucion: executionDate,
+    proximaEjecucion: nextExecution,
+  };
+}
+
+function calculateNextExecution_(date, frequency, unit) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    throw new Error("Fecha de ejecución inválida.");
+  }
+  if (!frequency || frequency < 1) throw new Error("Frecuencia inválida.");
+
+  const next = new Date(date.getTime());
+  if (unit === "Días") next.setDate(next.getDate() + frequency);
+  else if (unit === "Semanas") next.setDate(next.getDate() + frequency * 7);
+  else if (unit === "Meses") next.setMonth(next.getMonth() + frequency);
+  else if (unit === "Años") next.setFullYear(next.getFullYear() + frequency);
+  else throw new Error("UnidadFrecuencia no permitida: " + unit);
+  return next;
+}
+
+function nextPreventiveId_(sheet) {
+  const values = sheet.getDataRange().getValues();
+  let max = 0;
+  values.slice(1).forEach(function (row) {
+    const match = String(row[0] || "").match(/PM-(\d+)/);
+    if (match) max = Math.max(max, Number(match[1]));
+  });
+  return "PM-" + String(max + 1).padStart(5, "0");
+}
+
 function writeOptionalColumn_(sheet, headers, rowNumber, header, value) {
   let columnIndex = headers.indexOf(header);
   if (columnIndex === -1) {
@@ -194,7 +356,7 @@ function readSheetAsObjects_(sheetName) {
     });
 }
 
-function ensureHeaders_(sheet, headers) {
+function ensureHeaders_(sheet, headers, sheetName) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     return;
@@ -207,7 +369,9 @@ function ensureHeaders_(sheet, headers) {
 
   if (missingHeaders) {
     throw new Error(
-      "La hoja OT_OrdenesTrabajo debe tener las columnas: " +
+      "La hoja " +
+        (sheetName || SHEET_OT) +
+        " debe tener las columnas: " +
         headers.join(", "),
     );
   }
