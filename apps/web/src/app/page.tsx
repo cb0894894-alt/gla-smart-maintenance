@@ -7,55 +7,14 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { inventory, modules, workOrders } from "@/data/mock";
-
-type Asset = {
-  estado?: string;
-};
-
-function getAssetsApiUrl() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
-  if (!apiUrl) {
-    console.error("NEXT_PUBLIC_API_URL is not configured.");
-    return null;
-  }
-
-  const url = new URL(apiUrl);
-  url.searchParams.set("accion", "activos");
-
-  return url.toString();
-}
-
-function parseAssetsResponse(data: unknown): Asset[] {
-  if (!Array.isArray(data)) {
-    console.error("Unexpected assets response format.", data);
-    return [];
-  }
-
-  return data.filter((asset): asset is Asset => {
-    return typeof asset === "object" && asset !== null;
-  });
-}
+import { fetchAssets, type Asset } from "@/lib/assets/google-sheets";
 
 export default function DashboardPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
 
   useEffect(() => {
-    const assetsApiUrl = getAssetsApiUrl();
-
-    if (!assetsApiUrl) {
-      return;
-    }
-
-    fetch(assetsApiUrl)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Assets API responded with ${response.status}`);
-        }
-
-        return response.json();
-      })
-      .then((data: unknown) => setAssets(parseAssetsResponse(data)))
+    fetchAssets()
+      .then(setAssets)
       .catch((error: unknown) => {
         console.error("Unable to load assets from Google Sheets.", error);
       });
@@ -78,8 +37,9 @@ export default function DashboardPage() {
               Centro de mantenimiento inteligente
             </h2>
             <p className="mt-3 max-w-2xl text-muted-foreground">
-              Monitorea activos, órdenes, inventario e indicadores con datos
-              simulados para arrancar el producto inmediatamente.
+              Monitorea activos, órdenes, inventario e indicadores. El Dashboard
+              y el módulo de Activos usan datos reales de Google Sheets mediante
+              la conexión validada.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
