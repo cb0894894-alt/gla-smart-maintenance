@@ -1,15 +1,27 @@
 # Contrato Google Apps Script para MCA Alpha 0.1
 
-El repositorio solo tenía consumo de `GET ?accion=activos`; esta versión agrega el contrato de escritura para crear órdenes de trabajo reales desde el flujo **Reporte de falla → Orden de Trabajo**.
+Esta versión conecta el módulo real de **Órdenes de Trabajo** con las hojas `ACT_Activos` y `OT_OrdenesTrabajo` sin modificar ni eliminar datos existentes.
 
 ## Acciones admitidas
 
 - `GET ?accion=activos`: devuelve los activos reales de la hoja `ACT_Activos`.
+- `GET ?accion=ordenesTrabajo`: devuelve las filas reales de `OT_OrdenesTrabajo` como objetos JSON.
 - `POST` con JSON `{ "accion": "crearOrdenTrabajo", ... }`: crea una fila en `OT_OrdenesTrabajo` y responde `{ "ok": true, "folio": "OT-YYYYMMDD-0001", "estado": "Abierta" }`.
+- `POST` con JSON `{ "accion": "actualizarEstadoOrdenTrabajo", "folio": "OT-...", "estado": "Asignada" }`: actualiza únicamente la columna `Estado` de una OT existente.
+- Para cerrar una OT, el `POST` debe incluir `"estado": "Cerrada"` y `"notaCierre": "..."`; el script rechaza cierres sin nota breve.
+
+## Estados permitidos
+
+- `Abierta`
+- `Asignada`
+- `En proceso`
+- `En espera`
+- `Cerrada`
+- `Cancelada`
 
 ## Estructura requerida de `OT_OrdenesTrabajo`
 
-La hoja debe existir. Si está vacía, el script crea exactamente estos encabezados en la fila 1 al procesar la primera orden; si ya tiene encabezados, deben estar en este orden:
+La hoja debe existir. Si está vacía, el script crea exactamente estos encabezados en la fila 1 al procesar la primera orden; si ya tiene encabezados, los primeros 13 deben estar en este orden:
 
 1. `Folio`
 2. `FechaHoraReporte`
@@ -25,12 +37,32 @@ La hoja debe existir. Si está vacía, el script crea exactamente estos encabeza
 12. `Estado`
 13. `Origen`
 
+Al actualizar estado, el script puede agregar columnas al final para auditoría operativa:
+
+- `FechaHoraActualizacion`
+- `NotaCierre` solo cuando el estado nuevo es `Cerrada`
+
+## Nueva versión de Apps Script a desplegar
+
+Desplegar una nueva versión de `scripts/google-apps-script/mca-alpha-0-1.gs` identificada como:
+
+**MCA Alpha 0.1 — Órdenes de Trabajo reales v2**
+
 ## Despliegue manual
 
 1. Abrir el spreadsheet operativo de GLA Smart Maintenance.
 2. Ir a **Extensiones → Apps Script**.
-3. Copiar el contenido de `scripts/google-apps-script/mca-alpha-0-1.gs` en el proyecto de Apps Script vinculado.
-4. Confirmar que existen las hojas `ACT_Activos` y `OT_OrdenesTrabajo`. Si `OT_OrdenesTrabajo` está vacía, el script creará los encabezados anteriores al procesar la primera orden; si ya tiene encabezados, deben coincidir exactamente.
-5. Publicar con **Implementar → Nueva implementación → Aplicación web**.
-6. Usar acceso compatible con la operación del equipo y copiar la URL de la aplicación web.
-7. Configurar `NEXT_PUBLIC_API_URL` en la aplicación web con esa URL.
+3. Copiar el contenido completo de `scripts/google-apps-script/mca-alpha-0-1.gs` en el proyecto de Apps Script vinculado.
+4. Confirmar que existen las hojas `ACT_Activos` y `OT_OrdenesTrabajo`.
+5. Verificar que `OT_OrdenesTrabajo` conserva los encabezados confirmados y que la orden real `OT-20260713-0001` sigue presente.
+6. Publicar con **Implementar → Nueva implementación → Aplicación web** o **Administrar implementaciones → Editar → Nueva versión**.
+7. Usar acceso compatible con la operación del equipo y copiar la URL de la aplicación web.
+8. Configurar `NEXT_PUBLIC_API_URL` en la aplicación web con esa URL.
+
+## Pruebas sin alterar la orden existente
+
+1. Probar lectura de activos en navegador: abrir la URL de Apps Script con `?accion=activos` y confirmar que devuelve una lista JSON.
+2. Probar lectura de OT en navegador: abrir la URL con `?accion=ordenesTrabajo` y confirmar que aparece `OT-20260713-0001`.
+3. En la app, abrir `/ordenes-trabajo`, buscar `OT-20260713-0001` y abrir su detalle. No presionar **Guardar estado** si no se desea alterar esa orden.
+4. Para probar actualización sin tocar la orden existente, crear primero una OT de prueba desde `/reportar-falla` usando un activo real y una descripción que incluya `PRUEBA`. Después actualizar solo esa OT de prueba a `Asignada`, `En proceso`, `En espera`, `Cancelada` o `Cerrada` con nota.
+5. Si se requiere una prueba completamente no destructiva, limitarse a los pasos de lectura y detalle; las acciones de actualización siempre escriben en la fila de la OT seleccionada.

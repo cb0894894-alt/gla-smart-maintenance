@@ -2,7 +2,9 @@
  * Google Apps Script Web App contract for MCA Alpha 0.1.
  * Supported actions:
  * - GET  ?accion=activos: returns rows from sheet "ACT_Activos" as JSON objects.
+ * - GET  ?accion=ordenesTrabajo: returns rows from sheet "OT_OrdenesTrabajo".
  * - POST { accion: "crearOrdenTrabajo", ... }: appends a row to "OT_OrdenesTrabajo".
+ * - POST { accion: "actualizarEstadoOrdenTrabajo", folio, estado, notaCierre? }: updates only Estado.
  *
  * Expected OT_OrdenesTrabajo columns:
  * Folio, FechaHoraReporte, CodigoActivo, Activo, Area, Criticidad, Reporta,
@@ -33,6 +35,10 @@ function doGet(e) {
     return jsonResponse(readSheetAsObjects_(SHEET_ACTIVOS));
   }
 
+  if (accion === "ordenesTrabajo") {
+    return jsonResponse(readSheetAsObjects_(SHEET_OT));
+  }
+
   return jsonResponse({ ok: false, error: "Accion no soportada." });
 }
 
@@ -42,6 +48,10 @@ function doPost(e) {
 
     if (payload.accion === "crearOrdenTrabajo") {
       return jsonResponse(createWorkOrder_(payload));
+    }
+
+    if (payload.accion === "actualizarEstadoOrdenTrabajo") {
+      return jsonResponse(updateWorkOrderStatus_(payload));
     }
 
     return jsonResponse({ ok: false, error: "Accion no soportada." });
@@ -82,6 +92,75 @@ function createWorkOrder_(payload) {
   sheet.appendRow(row);
 
   return { ok: true, folio: folio, estado: "Abierta" };
+}
+
+function updateWorkOrderStatus_(payload) {
+  validateRequired_(payload, ["folio", "estado"]);
+
+  const allowedStatuses = [
+    "Abierta",
+    "Asignada",
+    "En proceso",
+    "En espera",
+    "Cerrada",
+    "Cancelada",
+  ];
+  if (allowedStatuses.indexOf(payload.estado) === -1) {
+    throw new Error("Estado no permitido: " + payload.estado);
+  }
+  if (
+    payload.estado === "Cerrada" &&
+    !String(payload.notaCierre || "").trim()
+  ) {
+    throw new Error(
+      "Para cerrar una OT debes capturar una nota breve de cierre.",
+    );
+  }
+
+  const sheet = getSheet_(SHEET_OT);
+  ensureHeaders_(sheet, OT_HEADERS);
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const folioIndex = headers.indexOf("Folio");
+  const estadoIndex = headers.indexOf("Estado");
+  const rowIndex = values.findIndex(function (row, index) {
+    return (
+      index > 0 &&
+      String(row[folioIndex]).trim() === String(payload.folio).trim()
+    );
+  });
+
+  if (rowIndex === -1) throw new Error("No existe la OT " + payload.folio);
+
+  sheet.getRange(rowIndex + 1, estadoIndex + 1).setValue(payload.estado);
+  writeOptionalColumn_(
+    sheet,
+    headers,
+    rowIndex + 1,
+    "FechaHoraActualizacion",
+    new Date(),
+  );
+  if (payload.estado === "Cerrada") {
+    writeOptionalColumn_(
+      sheet,
+      headers,
+      rowIndex + 1,
+      "NotaCierre",
+      String(payload.notaCierre).trim(),
+    );
+  }
+
+  return { ok: true, folio: payload.folio, estado: payload.estado };
+}
+
+function writeOptionalColumn_(sheet, headers, rowNumber, header, value) {
+  let columnIndex = headers.indexOf(header);
+  if (columnIndex === -1) {
+    columnIndex = headers.length;
+    sheet.getRange(1, columnIndex + 1).setValue(header);
+    headers.push(header);
+  }
+  sheet.getRange(rowNumber, columnIndex + 1).setValue(value);
 }
 
 function nextWorkOrderFolio_(sheet) {

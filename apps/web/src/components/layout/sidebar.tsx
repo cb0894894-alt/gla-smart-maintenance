@@ -15,7 +15,7 @@ const navigation = [
   {
     label: "Órdenes de trabajo",
     icon: ClipboardList,
-    href: "/#órdenes-de-trabajo",
+    href: "/ordenes-trabajo",
   },
   {
     label: "Mantenimiento Preventivo",
