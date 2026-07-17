@@ -316,15 +316,11 @@ function closeWorkOrder_(payload) {
     }
 
     if (String(otValues[rowIndex][estadoIndex]).trim() === "Cerrada") {
-      return {
-        ok: true,
-        folio: payload.folio,
-        estado: "Cerrada",
-        alreadyClosed: true,
-        duplicateHistory: false,
-        message:
-          "La orden ya está cerrada; no se agregó un registro nuevo en MNT_Historial.",
-      };
+      throw new Error(
+        "La OT " +
+          payload.folio +
+          " ya está cerrada pero no tiene registro en MNT_Historial.",
+      );
     }
 
     const costoRefacciones = Number(payload.costoRefacciones);
@@ -332,8 +328,7 @@ function closeWorkOrder_(payload) {
     const costoTotal = costoRefacciones + costoManoObra;
     const order = otValues[rowIndex];
     const idHistorial = nextHistoryId_(historySheet);
-
-    historySheet.appendRow([
+    const historyRow = [
       idHistorial,
       String(payload.folio).trim(),
       formatCalendarDate_(payload.fechaCierre),
@@ -349,23 +344,40 @@ function closeWorkOrder_(payload) {
       costoTotal,
       String(payload.estadoFinal).trim(),
       String(payload.observaciones || "").trim(),
-    ]);
+    ];
+    let appendedHistoryRowNumber = 0;
 
-    otSheet.getRange(rowIndex + 1, estadoIndex + 1).setValue("Cerrada");
-    writeOptionalColumn_(
-      otSheet,
-      otHeaders,
-      rowIndex + 1,
-      "FechaHoraActualizacion",
-      new Date(),
-    );
-    writeOptionalColumn_(
-      otSheet,
-      otHeaders,
-      rowIndex + 1,
-      "NotaCierre",
-      String(payload.observaciones || payload.trabajoRealizado).trim(),
-    );
+    try {
+      historySheet.appendRow(historyRow);
+      appendedHistoryRowNumber = historySheet.getLastRow();
+      writeOptionalColumn_(
+        otSheet,
+        otHeaders,
+        rowIndex + 1,
+        "FechaHoraActualizacion",
+        new Date(),
+      );
+      writeOptionalColumn_(
+        otSheet,
+        otHeaders,
+        rowIndex + 1,
+        "NotaCierre",
+        String(payload.observaciones || payload.trabajoRealizado).trim(),
+      );
+      otSheet.getRange(rowIndex + 1, estadoIndex + 1).setValue("Cerrada");
+    } catch (error) {
+      rollbackHistoryAppend_(
+        historySheet,
+        appendedHistoryRowNumber,
+        idHistorial,
+      );
+      throw new Error(
+        "No se pudo completar el cierre de la OT " +
+          payload.folio +
+          ". No se marcó como Cerrada sin historial. Detalle: " +
+          String(error.message || error),
+      );
+    }
 
     return {
       ok: true,
@@ -375,6 +387,24 @@ function closeWorkOrder_(payload) {
     };
   } finally {
     lock.releaseLock();
+  }
+}
+
+function rollbackHistoryAppend_(sheet, rowNumber, idHistorial) {
+  if (!rowNumber) return;
+
+  try {
+    const currentId = sheet.getRange(rowNumber, 1).getValue();
+    if (String(currentId).trim() === String(idHistorial).trim()) {
+      sheet.deleteRow(rowNumber);
+    }
+  } catch (rollbackError) {
+    throw new Error(
+      "No se pudo revertir el registro de historial " +
+        idHistorial +
+        ": " +
+        String(rollbackError.message || rollbackError),
+    );
   }
 }
 
