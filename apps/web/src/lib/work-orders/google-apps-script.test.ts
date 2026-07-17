@@ -50,10 +50,57 @@ describe("Google Apps Script work order closure consistency", () => {
 
   it("treats already closed orders idempotently only when history exists", () => {
     expect(closeWorkOrderSource.indexOf("duplicateHistory: true")).toBeLessThan(
-      closeWorkOrderSource.indexOf("ya está cerrada pero no tiene registro"),
+      closeWorkOrderSource.indexOf("validateCloseHistoryPayload_(payload)"),
     );
+    expect(closeWorkOrderSource).toContain("const orderIsAlreadyClosed =");
     expect(closeWorkOrderSource).toContain(
-      "ya está cerrada pero no tiene registro en MNT_Historial",
+      "ya está cerrada pero requiere completar su historial en MNT_Historial",
+    );
+  });
+
+  it("returns closed orders with existing history without appending another row", () => {
+    expect(
+      closeWorkOrderSource.indexOf("if (duplicateIndex !== -1)"),
+    ).toBeLessThan(closeWorkOrderSource.indexOf("return {\n        ok: true"));
+    expect(closeWorkOrderSource.indexOf("duplicateHistory: true")).toBeLessThan(
+      closeWorkOrderSource.indexOf("historySheet.appendRow(historyRow)"),
+    );
+  });
+
+  it("reconstructs missing history for already closed orders with complete closure data", () => {
+    expect(
+      closeWorkOrderSource.indexOf("validateCloseHistoryPayload_(payload)"),
+    ).toBeLessThan(
+      closeWorkOrderSource.indexOf("historySheet.appendRow(historyRow)"),
+    );
+    expect(closeWorkOrderSource).toContain("if (!orderIsAlreadyClosed) {");
+    expect(
+      closeWorkOrderSource.indexOf("historySheet.appendRow(historyRow)"),
+    ).toBeLessThan(
+      closeWorkOrderSource.lastIndexOf("if (!orderIsAlreadyClosed) {"),
+    );
+  });
+
+  it("reports a clear error when a closed order lacks enough data to rebuild history", () => {
+    expect(closeWorkOrderSource).toContain("catch (validationError)");
+    expect(closeWorkOrderSource).toContain(
+      "Envía los datos de cierre completos para reconstruirlo",
+    );
+    expect(
+      closeWorkOrderSource.indexOf("catch (validationError)"),
+    ).toBeLessThan(
+      closeWorkOrderSource.indexOf("historySheet.appendRow(historyRow)"),
+    );
+  });
+
+  it("keeps repeated or simultaneous close requests serialized and duplicate-safe", () => {
+    expect(closeWorkOrderSource.indexOf("lock.waitLock(30000)")).toBeLessThan(
+      closeWorkOrderSource.indexOf("historySheet.getDataRange().getValues()"),
+    );
+    expect(
+      closeWorkOrderSource.indexOf("if (duplicateIndex !== -1)"),
+    ).toBeLessThan(
+      closeWorkOrderSource.indexOf("historySheet.appendRow(historyRow)"),
     );
   });
 });
