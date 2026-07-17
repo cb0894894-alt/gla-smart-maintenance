@@ -8,6 +8,7 @@
  * - GET  ?accion=indicadores: returns rows from sheet "KPI_Indicadores" as JSON objects.
  * - POST { accion: "crearOrdenTrabajo", ... }: appends a row to "OT_OrdenesTrabajo".
  * - POST { accion: "actualizarEstadoOrdenTrabajo", folio, estado, notaCierre? }: updates only Estado.
+ * - POST { accion: "cerrarOrdenTrabajo", folio, ... }: closes an OT and appends MNT_Historial idempotently.
  * - GET  ?accion=preventivos: returns rows from sheet "PM_Preventivos".
  * - POST { accion: "crearPreventivo", ... }: appends a preventive plan to "PM_Preventivos".
  * - POST { accion: "registrarEjecucionPreventivo", idPM, fechaEjecucion }: updates UltimaEjecucion and ProximaEjecucion.
@@ -143,6 +144,10 @@ function doPost(e) {
       return jsonResponse(updateWorkOrderStatus_(payload));
     }
 
+    if (payload.accion === "cerrarOrdenTrabajo") {
+      return jsonResponse(closeWorkOrder_(payload));
+    }
+
     if (payload.accion === "crearPreventivo") {
       return jsonResponse(createPreventivePlan_(payload));
     }
@@ -248,6 +253,176 @@ function updateWorkOrderStatus_(payload) {
   }
 
   return { ok: true, folio: payload.folio, estado: payload.estado };
+}
+
+function closeWorkOrder_(payload) {
+  validateRequired_(payload, [
+    "folio",
+    "fechaCierre",
+    "tipoMantenimiento",
+    "fallaDetectada",
+    "trabajoRealizado",
+    "tecnico",
+    "estadoFinal",
+  ]);
+  validateNonNegativeNumber_(payload, "tiempoParoHoras");
+  validateNonNegativeNumber_(payload, "costoRefacciones");
+  validateNonNegativeNumber_(payload, "costoManoObra");
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const otSheet = getSheet_(SHEET_OT);
+    const historySheet = getSheet_(SHEET_HISTORY);
+    ensureHeaders_(otSheet, OT_HEADERS, SHEET_OT);
+    ensureHeaders_(historySheet, HISTORY_HEADERS, SHEET_HISTORY);
+
+    const otValues = otSheet.getDataRange().getValues();
+    const otHeaders = otValues[0].map(String);
+    const folioIndex = otHeaders.indexOf("Folio");
+    const estadoIndex = otHeaders.indexOf("Estado");
+    const codigoIndex = otHeaders.indexOf("CodigoActivo");
+    const activoIndex = otHeaders.indexOf("Activo");
+    const rowIndex = otValues.findIndex(function (row, index) {
+      return (
+        index > 0 &&
+        String(row[folioIndex]).trim() === String(payload.folio).trim()
+      );
+    });
+    if (rowIndex === -1) throw new Error("No existe la OT " + payload.folio);
+
+    const historyValues = historySheet.getDataRange().getValues();
+    const historyHeaders = historyValues[0].map(String);
+    const historyFolioIndex = historyHeaders.indexOf("FolioOT");
+    const duplicateIndex = historyValues.findIndex(function (row, index) {
+      return (
+        index > 0 &&
+        String(row[historyFolioIndex]).trim() === String(payload.folio).trim()
+      );
+    });
+    if (duplicateIndex !== -1) {
+      if (String(otValues[rowIndex][estadoIndex]).trim() !== "Cerrada") {
+        otSheet.getRange(rowIndex + 1, estadoIndex + 1).setValue("Cerrada");
+      }
+      return {
+        ok: true,
+        folio: payload.folio,
+        estado: "Cerrada",
+        alreadyClosed: true,
+        duplicateHistory: true,
+        idHistorial:
+          historyValues[duplicateIndex][historyHeaders.indexOf("IdHistorial")],
+      };
+    }
+
+    if (String(otValues[rowIndex][estadoIndex]).trim() === "Cerrada") {
+      throw new Error(
+        "La OT " +
+          payload.folio +
+          " ya está cerrada pero no tiene registro en MNT_Historial.",
+      );
+    }
+
+    const costoRefacciones = Number(payload.costoRefacciones);
+    const costoManoObra = Number(payload.costoManoObra);
+    const costoTotal = costoRefacciones + costoManoObra;
+    const order = otValues[rowIndex];
+    const idHistorial = nextHistoryId_(historySheet);
+    const historyRow = [
+      idHistorial,
+      String(payload.folio).trim(),
+      formatCalendarDate_(payload.fechaCierre),
+      order[codigoIndex],
+      order[activoIndex],
+      String(payload.tipoMantenimiento).trim(),
+      String(payload.fallaDetectada).trim(),
+      String(payload.trabajoRealizado).trim(),
+      String(payload.tecnico).trim(),
+      Number(payload.tiempoParoHoras),
+      costoRefacciones,
+      costoManoObra,
+      costoTotal,
+      String(payload.estadoFinal).trim(),
+      String(payload.observaciones || "").trim(),
+    ];
+    let appendedHistoryRowNumber = 0;
+
+    try {
+      historySheet.appendRow(historyRow);
+      appendedHistoryRowNumber = historySheet.getLastRow();
+      writeOptionalColumn_(
+        otSheet,
+        otHeaders,
+        rowIndex + 1,
+        "FechaHoraActualizacion",
+        new Date(),
+      );
+      writeOptionalColumn_(
+        otSheet,
+        otHeaders,
+        rowIndex + 1,
+        "NotaCierre",
+        String(payload.observaciones || payload.trabajoRealizado).trim(),
+      );
+      otSheet.getRange(rowIndex + 1, estadoIndex + 1).setValue("Cerrada");
+    } catch (error) {
+      rollbackHistoryAppend_(
+        historySheet,
+        appendedHistoryRowNumber,
+        idHistorial,
+      );
+      throw new Error(
+        "No se pudo completar el cierre de la OT " +
+          payload.folio +
+          ". No se marcó como Cerrada sin historial. Detalle: " +
+          String(error.message || error),
+      );
+    }
+
+    return {
+      ok: true,
+      folio: payload.folio,
+      estado: "Cerrada",
+      idHistorial: idHistorial,
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function rollbackHistoryAppend_(sheet, rowNumber, idHistorial) {
+  if (!rowNumber) return;
+
+  try {
+    const currentId = sheet.getRange(rowNumber, 1).getValue();
+    if (String(currentId).trim() === String(idHistorial).trim()) {
+      sheet.deleteRow(rowNumber);
+    }
+  } catch (rollbackError) {
+    throw new Error(
+      "No se pudo revertir el registro de historial " +
+        idHistorial +
+        ": " +
+        String(rollbackError.message || rollbackError),
+    );
+  }
+}
+
+function validateNonNegativeNumber_(payload, field) {
+  const value = Number(payload[field]);
+  if (payload[field] === "" || isNaN(value) || value < 0) {
+    throw new Error("Campo numérico inválido: " + field);
+  }
+}
+
+function nextHistoryId_(sheet) {
+  const values = sheet.getDataRange().getValues();
+  let max = 0;
+  values.slice(1).forEach(function (row) {
+    const match = String(row[0] || "").match(/HIS-(\d+)/);
+    if (match) max = Math.max(max, Number(match[1]));
+  });
+  return "HIS-" + String(max + 1).padStart(5, "0");
 }
 
 function createPreventivePlan_(payload) {
