@@ -24,7 +24,7 @@ const navigation = [
   },
   { label: "Inventario", icon: Package, href: "/inventario" },
   { label: "Historial", icon: History, href: "/historial" },
-  { label: "Indicadores", icon: Gauge, href: "/#indicadores" },
+  { label: "Indicadores", icon: Gauge, href: "/indicadores" },
 ];
 
 export function Sidebar() {

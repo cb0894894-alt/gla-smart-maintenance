@@ -5,6 +5,7 @@
  * - GET  ?accion=ordenesTrabajo: returns rows from sheet "OT_OrdenesTrabajo".
  * - GET  ?accion=inventario: returns rows from sheet "INV_Refacciones" as JSON objects.
  * - GET  ?accion=historial: returns rows from sheet "MNT_Historial" as JSON objects.
+ * - GET  ?accion=indicadores: returns rows from sheet "KPI_Indicadores" as JSON objects.
  * - POST { accion: "crearOrdenTrabajo", ... }: appends a row to "OT_OrdenesTrabajo".
  * - POST { accion: "actualizarEstadoOrdenTrabajo", folio, estado, notaCierre? }: updates only Estado.
  * - GET  ?accion=preventivos: returns rows from sheet "PM_Preventivos".
@@ -20,6 +21,7 @@ const SHEET_OT = "OT_OrdenesTrabajo";
 const SHEET_PM = "PM_Preventivos";
 const SHEET_INVENTORY = "INV_Refacciones";
 const SHEET_HISTORY = "MNT_Historial";
+const SHEET_INDICATORS = "KPI_Indicadores";
 const OPERATIONAL_TIME_ZONE = "America/Mazatlan";
 const OT_HEADERS = [
   "Folio",
@@ -85,6 +87,19 @@ const HISTORY_HEADERS = [
   "EstadoFinal",
   "Observaciones",
 ];
+const INDICATOR_HEADERS = [
+  "Periodo",
+  "Sucursal",
+  "DisponibilidadPct",
+  "MTBFHoras",
+  "MTTRHoras",
+  "CumplimientoPreventivoPct",
+  "OrdenesCorrectivas",
+  "OrdenesPreventivas",
+  "HorasParo",
+  "CostoMantenimiento",
+  "FechaActualizacion",
+];
 
 function doGet(e) {
   const accion = e && e.parameter ? e.parameter.accion : "";
@@ -107,6 +122,10 @@ function doGet(e) {
 
   if (accion === "historial") {
     return jsonResponse(readSheetAsObjects_(SHEET_HISTORY));
+  }
+
+  if (accion === "indicadores") {
+    return jsonResponse(readSheetAsObjects_(SHEET_INDICATORS));
   }
 
   return jsonResponse({ ok: false, error: "Accion no soportada." });
@@ -419,6 +438,8 @@ function readSheetAsObjects_(sheetName) {
   const sheet = getSheet_(sheetName);
   if (sheetName === SHEET_HISTORY)
     ensureHeaders_(sheet, HISTORY_HEADERS, SHEET_HISTORY);
+  if (sheetName === SHEET_INDICATORS)
+    ensureHeaders_(sheet, INDICATOR_HEADERS, SHEET_INDICATORS);
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) return [];
   const headers = values[0].map(String);

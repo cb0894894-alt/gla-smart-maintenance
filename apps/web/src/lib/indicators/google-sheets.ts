@@ -1,0 +1,191 @@
+export type IndicatorRecord = {
+  periodo: string;
+  sucursal: string;
+  disponibilidadPct: number;
+  mtbfHoras: number;
+  mttrHoras: number;
+  cumplimientoPreventivoPct: number;
+  ordenesCorrectivas: number;
+  ordenesPreventivas: number;
+  horasParo: number;
+  costoMantenimiento: number;
+  fechaActualizacion: string;
+};
+
+export type IndicatorFilters = {
+  sucursal: string;
+  periodoDesde: string;
+  periodoHasta: string;
+};
+
+export type IndicatorVariation = {
+  current: IndicatorRecord | null;
+  previous: IndicatorRecord | null;
+  changes: Record<
+    | "disponibilidadPct"
+    | "mtbfHoras"
+    | "mttrHoras"
+    | "cumplimientoPreventivoPct"
+    | "horasParo"
+    | "costoMantenimiento",
+    number | null
+  >;
+};
+
+const FIELD_ALIASES: Record<keyof IndicatorRecord, string[]> = {
+  periodo: ["Periodo"],
+  sucursal: ["Sucursal"],
+  disponibilidadPct: ["DisponibilidadPct"],
+  mtbfHoras: ["MTBFHoras"],
+  mttrHoras: ["MTTRHoras"],
+  cumplimientoPreventivoPct: ["CumplimientoPreventivoPct"],
+  ordenesCorrectivas: ["OrdenesCorrectivas", "ÓrdenesCorrectivas"],
+  ordenesPreventivas: ["OrdenesPreventivas", "ÓrdenesPreventivas"],
+  horasParo: ["HorasParo"],
+  costoMantenimiento: ["CostoMantenimiento"],
+  fechaActualizacion: ["FechaActualizacion"],
+};
+
+const NUMERIC_FIELDS = new Set<keyof IndicatorRecord>([
+  "disponibilidadPct",
+  "mtbfHoras",
+  "mttrHoras",
+  "cumplimientoPreventivoPct",
+  "ordenesCorrectivas",
+  "ordenesPreventivas",
+  "horasParo",
+  "costoMantenimiento",
+]);
+
+function normalizeKey(key: string) {
+  return key
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+export function parseIndicatorNumber(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const parsed = Number(
+    String(value ?? "")
+      .replace(/,/g, "")
+      .replace(/[^0-9.-]/g, ""),
+  );
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function readField(record: Record<string, unknown>, field: keyof IndicatorRecord) {
+  const aliases = FIELD_ALIASES[field].map(normalizeKey);
+  const sourceKey = Object.keys(record).find((key) =>
+    aliases.includes(normalizeKey(key)),
+  );
+  const value = sourceKey ? record[sourceKey] : undefined;
+
+  if (NUMERIC_FIELDS.has(field)) return parseIndicatorNumber(value);
+  if (value instanceof Date) return value.toISOString();
+  return typeof value === "string" || typeof value === "number"
+    ? String(value).trim()
+    : "";
+}
+
+function getApiUrl() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) throw new Error("NEXT_PUBLIC_API_URL no está configurada.");
+  return apiUrl;
+}
+
+export function getIndicatorsApiUrl() {
+  const url = new URL(getApiUrl());
+  url.searchParams.set("accion", "indicadores");
+  return url.toString();
+}
+
+export function sortIndicatorsByPeriod(records: IndicatorRecord[]) {
+  return [...records].sort((a, b) =>
+    a.periodo.localeCompare(b.periodo, "es-MX", { numeric: true }),
+  );
+}
+
+export function parseIndicatorsResponse(data: unknown): IndicatorRecord[] {
+  if (!Array.isArray(data)) {
+    throw new Error("La API no devolvió una lista de indicadores.");
+  }
+
+  return sortIndicatorsByPeriod(
+    data
+      .filter(
+        (item): item is Record<string, unknown> =>
+          typeof item === "object" && item !== null,
+      )
+      .map((item) => ({
+        periodo: readField(item, "periodo") as string,
+        sucursal: readField(item, "sucursal") as string,
+        disponibilidadPct: readField(item, "disponibilidadPct") as number,
+        mtbfHoras: readField(item, "mtbfHoras") as number,
+        mttrHoras: readField(item, "mttrHoras") as number,
+        cumplimientoPreventivoPct: readField(
+          item,
+          "cumplimientoPreventivoPct",
+        ) as number,
+        ordenesCorrectivas: readField(item, "ordenesCorrectivas") as number,
+        ordenesPreventivas: readField(item, "ordenesPreventivas") as number,
+        horasParo: readField(item, "horasParo") as number,
+        costoMantenimiento: readField(item, "costoMantenimiento") as number,
+        fechaActualizacion: readField(item, "fechaActualizacion") as string,
+      }))
+      .filter((record) => record.periodo),
+  );
+}
+
+export async function fetchIndicators() {
+  const response = await fetch(getIndicatorsApiUrl());
+  if (!response.ok)
+    throw new Error(`La API de indicadores respondió con ${response.status}.`);
+  return parseIndicatorsResponse(await response.json());
+}
+
+export function filterIndicators(
+  records: IndicatorRecord[],
+  filters: IndicatorFilters,
+) {
+  return sortIndicatorsByPeriod(
+    records.filter(
+      (record) =>
+        (!filters.sucursal || record.sucursal === filters.sucursal) &&
+        (!filters.periodoDesde || record.periodo >= filters.periodoDesde) &&
+        (!filters.periodoHasta || record.periodo <= filters.periodoHasta),
+    ),
+  );
+}
+
+export function getLatestPeriodVariation(
+  records: IndicatorRecord[],
+): IndicatorVariation {
+  const sorted = sortIndicatorsByPeriod(records);
+  const current = sorted.at(-1) ?? null;
+  const previous = sorted.at(-2) ?? null;
+  const fields = [
+    "disponibilidadPct",
+    "mtbfHoras",
+    "mttrHoras",
+    "cumplimientoPreventivoPct",
+    "horasParo",
+    "costoMantenimiento",
+  ] as const;
+
+  return {
+    current,
+    previous,
+    changes: Object.fromEntries(
+      fields.map((field) => [
+        field,
+        current && previous ? current[field] - previous[field] : null,
+      ]),
+    ) as IndicatorVariation["changes"],
+  };
+}
+
+export function getPeriodRange(records: IndicatorRecord[]) {
+  return sortIndicatorsByPeriod(records).map((record) => record.periodo);
+}
