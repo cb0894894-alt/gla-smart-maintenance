@@ -75,7 +75,58 @@ export function parseIndicatorNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function readField(record: Record<string, unknown>, field: keyof IndicatorRecord) {
+export function normalizeIndicatorPeriod(value: unknown) {
+  if (value instanceof Date) {
+    return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+
+  const rawValue = String(value ?? "").trim();
+  const yearMonthMatch = rawValue.match(/^(\d{4})-(\d{2})(?:$|[-T\s])/);
+  if (yearMonthMatch) return `${yearMonthMatch[1]}-${yearMonthMatch[2]}`;
+
+  return rawValue;
+}
+
+export function formatIndicatorPeriod(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return value;
+
+  const [, year, month] = match;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
+  const formattedMonth = new Intl.DateTimeFormat("es-MX", {
+    month: "short",
+    timeZone: "UTC",
+  })
+    .format(date)
+    .replace(".", "");
+
+  return `${formattedMonth.charAt(0).toUpperCase()}${formattedMonth.slice(1)} ${year}`;
+}
+
+export function formatIndicatorDate(value: string) {
+  const rawValue = String(value ?? "").trim();
+  if (!rawValue) return "";
+
+  const isoMatch = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+
+  const parsed = new Date(rawValue);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Intl.DateTimeFormat("es-MX", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(parsed);
+  }
+
+  return rawValue;
+}
+
+function readField(
+  record: Record<string, unknown>,
+  field: keyof IndicatorRecord,
+) {
   const aliases = FIELD_ALIASES[field].map(normalizeKey);
   const sourceKey = Object.keys(record).find((key) =>
     aliases.includes(normalizeKey(key)),
@@ -83,6 +134,11 @@ function readField(record: Record<string, unknown>, field: keyof IndicatorRecord
   const value = sourceKey ? record[sourceKey] : undefined;
 
   if (NUMERIC_FIELDS.has(field)) return parseIndicatorNumber(value);
+  if (field === "periodo") return normalizeIndicatorPeriod(value);
+  if (field === "fechaActualizacion") {
+    const rawValue = value instanceof Date ? value.toISOString() : value;
+    return formatIndicatorDate(String(rawValue ?? ""));
+  }
   if (value instanceof Date) return value.toISOString();
   return typeof value === "string" || typeof value === "number"
     ? String(value).trim()
