@@ -103,6 +103,7 @@ export function getIndicatorDashboardMetrics(records: IndicatorRecord[]) {
     disponibilidad: latest?.disponibilidadPct ?? 0,
     mtbf: latest?.mtbfHoras ?? 0,
     mttr: latest?.mttrHoras ?? 0,
+    cumplimientoPreventivo: latest?.cumplimientoPreventivoPct ?? 0,
   };
 }
 

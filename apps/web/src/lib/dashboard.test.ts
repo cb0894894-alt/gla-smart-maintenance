@@ -179,7 +179,13 @@ describe("dashboard aggregations", () => {
           fechaActualizacion: "",
         },
       ]),
-    ).toEqual({ periodo: "2026-06", disponibilidad: 95, mtbf: 100, mttr: 4 });
+    ).toEqual({
+      periodo: "2026-06",
+      disponibilidad: 95,
+      mtbf: 100,
+      mttr: 4,
+      cumplimientoPreventivo: 90,
+    });
   });
 
   it("selects dashboard sections from real module records", () => {

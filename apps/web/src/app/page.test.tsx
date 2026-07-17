@@ -51,7 +51,13 @@ const responses: Record<string, unknown[]> = {
     },
   ],
   indicadores: [
-    { periodo: "2026-06", disponibilidadPct: 97, mtbfHoras: 120, mttrHoras: 3 },
+    {
+      periodo: "2026-06",
+      disponibilidadPct: 97,
+      mtbfHoras: 120,
+      mttrHoras: 3,
+      cumplimientoPreventivoPct: 92,
+    },
   ],
 };
 
@@ -80,6 +86,7 @@ describe("DashboardPage", () => {
     });
 
     expect(screen.getByText("1 urgentes · 1 vencidas")).toBeInTheDocument();
+    expect(screen.getByText("92%")).toBeInTheDocument();
     expect(screen.getByText("1 próximos · 0 vencidos")).toBeInTheDocument();
     expect(
       screen.getByText("0 existencias bajas · 1 agotadas"),
@@ -92,6 +99,48 @@ describe("DashboardPage", () => {
     expect(screen.getByText("REF-1 · Filtro")).toBeInTheDocument();
     expect(screen.getByText("PM-1 · Bomba")).toBeInTheDocument();
     expect(screen.getByText("OT-099 · Bomba")).toBeInTheDocument();
+    expect(
+      screen.getByText("15/07/2026 · Correctivo · $1,500"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows clear empty messages for priority orders and upcoming maintenance", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async (input: string) => {
+      const accion = new URL(input).searchParams.get("accion") || "";
+      const emptyResponses = {
+        ...responses,
+        ordenesTrabajo: [
+          {
+            folio: "OT-200",
+            activo: "Compresor",
+            prioridad: "Alta",
+            estado: "Cerrada",
+            fechaHoraReporte: "2026-07-14T07:00:00.000Z",
+          },
+        ],
+        preventivos: [
+          {
+            idPM: "PM-2",
+            activo: "Bomba",
+            tarea: "Lubricar",
+            responsable: "Mantenimiento",
+            estado: "Activo",
+            proximaEjecucion: "2026-07-01",
+          },
+        ],
+      };
+      return { ok: true, json: async () => emptyResponses[accion] ?? [] };
+    });
+
+    render(<DashboardPage />);
+
+    expect(
+      await screen.findByText("No hay órdenes prioritarias"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("No hay mantenimientos próximos"),
+    ).toBeInTheDocument();
   });
 
   it("requests all Google Sheets endpoints using NEXT_PUBLIC_API_URL", async () => {

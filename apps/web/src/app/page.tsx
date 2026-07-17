@@ -110,16 +110,33 @@ export default function DashboardPage() {
     void loadDashboard();
   }, [loadDashboard]);
 
-  const metrics = useMemo(
-    () => ({
+  const metrics = useMemo(() => {
+    const preventive = getPreventiveDashboardMetrics(data.preventivos);
+    const indicators = getIndicatorDashboardMetrics(data.indicadores);
+
+    return {
       assets: getAssetDashboardMetrics(data.activos),
       workOrders: getWorkOrderDashboardMetrics(data.ordenes),
-      preventive: getPreventiveDashboardMetrics(data.preventivos),
+      preventive: {
+        ...preventive,
+        cumplimiento: indicators.cumplimientoPreventivo,
+      },
       inventory: getInventoryDashboardMetrics(data.inventario),
       history: getHistoryDashboardMetrics(data.historial),
-      indicators: getIndicatorDashboardMetrics(data.indicadores),
-    }),
-    [data],
+      indicators,
+    };
+  }, [data]);
+  const priorityWorkOrders = useMemo(
+    () => getPriorityWorkOrders(data.ordenes),
+    [data.ordenes],
+  );
+  const upcomingPreventivePlans = useMemo(
+    () => getUpcomingPreventivePlans(data.preventivos),
+    [data.preventivos],
+  );
+  const recentMaintenanceActivity = useMemo(
+    () => getRecentMaintenanceActivity(data.historial),
+    [data.historial],
   );
   const hasErrors = Object.keys(errors).length > 0;
 
@@ -194,7 +211,9 @@ export default function DashboardPage() {
             title="Mantenimiento preventivo"
             value={`${metrics.preventive.cumplimiento}%`}
             detail={`${metrics.preventive.proximos} próximos · ${metrics.preventive.vencidos} vencidos`}
-            empty={!loading && !data.preventivos.length}
+            empty={
+              !loading && !data.preventivos.length && !data.indicadores.length
+            }
           />
           <MetricCard
             href="/inventario"
@@ -223,13 +242,14 @@ export default function DashboardPage() {
           <ListCard
             title="Órdenes prioritarias"
             href="/ordenes-trabajo"
-            empty={!data.ordenes.length}
+            empty={!priorityWorkOrders.length}
+            emptyMessage="No hay órdenes prioritarias"
           >
-            {getPriorityWorkOrders(data.ordenes).map((o) => (
+            {priorityWorkOrders.map((o) => (
               <Row
                 key={o.folio}
                 main={`${o.folio} · ${o.activo}`}
-                meta={`${o.prioridad} · ${o.estado} · ${o.fechaHoraReporte}`}
+                meta={`${o.prioridad} · ${o.estado} · ${formatDate(o.fechaHoraReporte)}`}
               />
             ))}
           </ListCard>
@@ -250,13 +270,14 @@ export default function DashboardPage() {
           <ListCard
             title="Próximos mantenimientos preventivos"
             href="/mantenimiento-preventivo"
-            empty={!data.preventivos.length}
+            empty={!upcomingPreventivePlans.length}
+            emptyMessage="No hay mantenimientos próximos"
           >
-            {getUpcomingPreventivePlans(data.preventivos).map((p) => (
+            {upcomingPreventivePlans.map((p) => (
               <Row
                 key={p.idPM}
                 main={`${p.idPM} · ${p.activo}`}
-                meta={`${p.proximaEjecucion} · ${p.tarea} · ${p.responsable}`}
+                meta={`${formatDate(p.proximaEjecucion)} · ${p.tarea} · ${p.responsable}`}
               />
             ))}
           </ListCard>
@@ -265,11 +286,11 @@ export default function DashboardPage() {
             href="/historial"
             empty={!data.historial.length}
           >
-            {getRecentMaintenanceActivity(data.historial).map((h) => (
+            {recentMaintenanceActivity.map((h) => (
               <Row
                 key={h.idHistorial || h.folioOT}
                 main={`${h.folioOT} · ${h.activo}`}
-                meta={`${h.fechaCierre} · ${h.tipoMantenimiento} · ${formatCurrency(h.costoTotal)}`}
+                meta={`${formatDate(h.fechaCierre)} · ${h.tipoMantenimiento} · ${formatCurrency(h.costoTotal)}`}
               />
             ))}
           </ListCard>
@@ -316,12 +337,14 @@ function ListCard({
   href,
   empty,
   icon,
+  emptyMessage = "Sin datos disponibles.",
   children,
 }: {
   title: string;
   href: string;
   empty: boolean;
   icon?: React.ReactNode;
+  emptyMessage?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -339,9 +362,7 @@ function ListCard({
       </CardHeader>
       <CardContent className="space-y-3">
         {empty ? (
-          <p className="text-sm text-muted-foreground">
-            Sin datos disponibles.
-          </p>
+          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
         ) : (
           children
         )}
@@ -363,4 +384,15 @@ function formatCurrency(value: number) {
     currency: "MXN",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value || "Sin fecha";
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
