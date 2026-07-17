@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Boxes, Loader2, Package, Search } from "lucide-react";
+import { AlertCircle, Loader2, Package, Search } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,11 +53,17 @@ export default function InventoryPage() {
   );
   const indicators = useMemo(() => getInventoryIndicators(items), [items]);
   const categories = useMemo(
-    () => Array.from(new Set(items.map((item) => item.categoria).filter(Boolean))).sort(),
+    () =>
+      Array.from(
+        new Set(items.map((item) => item.categoria).filter(Boolean)),
+      ).sort(),
     [items],
   );
   const statuses = useMemo(
-    () => Array.from(new Set(items.map((item) => item.estado).filter(Boolean))).sort(),
+    () =>
+      Array.from(
+        new Set(items.map((item) => item.estado).filter(Boolean)),
+      ).sort(),
     [items],
   );
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -68,12 +74,17 @@ export default function InventoryPage() {
       <Sidebar />
       <section className="flex-1 p-4 sm:p-6 lg:p-8">
         <header className="mb-8 rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-cyan-950/30">
-          <Badge className="mb-3 bg-primary/15 text-primary">Alpha 0.1 MCA</Badge>
+          <Badge className="mb-3 bg-primary/15 text-primary">
+            Alpha 0.1 MCA
+          </Badge>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-3xl font-black tracking-tight sm:text-5xl">Inventario de refacciones</h2>
+              <h2 className="text-3xl font-black tracking-tight sm:text-5xl">
+                Inventario de refacciones
+              </h2>
               <p className="mt-3 max-w-2xl text-muted-foreground">
-                Consulta refacciones reales desde INV_Refacciones, detecta stock bajo y monitorea el valor del inventario.
+                Consulta refacciones reales desde INV_Refacciones, detecta stock
+                bajo y monitorea el valor del inventario.
               </p>
             </div>
             <Package className="h-14 w-14 text-primary" />
@@ -100,7 +111,10 @@ export default function InventoryPage() {
             ["Total de refacciones", indicators.total],
             ["Existencias bajas", indicators.bajas],
             ["Agotadas", indicators.agotadas],
-            ["Valor del inventario", `$${indicators.valorInventario.toLocaleString("es-MX")}`],
+            [
+              "Valor del inventario",
+              `$${indicators.valorInventario.toLocaleString("es-MX")}`,
+            ],
           ].map(([label, value]) => (
             <Card key={label} className="bg-white/[0.04]">
               <CardContent className="p-5">
@@ -175,8 +189,13 @@ export default function InventoryPage() {
                     pageItems.map((item) => {
                       const lowStock = item.existencia <= item.stockMinimo;
                       return (
-                        <tr key={item.codigo} className={`border-t border-white/10 ${lowStock ? "bg-amber-500/10" : ""}`}>
-                          <td className="px-4 py-3 font-semibold text-primary">{item.codigo}</td>
+                        <tr
+                          key={item.codigo}
+                          className={`border-t border-white/10 ${lowStock ? "bg-amber-500/10" : ""}`}
+                        >
+                          <td className="px-4 py-3 font-semibold text-primary">
+                            {item.codigo}
+                          </td>
                           <td className="px-4 py-3">{item.refaccion}</td>
                           <td className="px-4 py-3">{item.categoria}</td>
                           <td className="px-4 py-3">{item.existencia}</td>
@@ -186,18 +205,31 @@ export default function InventoryPage() {
                           <td className="px-4 py-3">{item.proveedor}</td>
                           <td className="px-4 py-3">{item.costoUnitario}</td>
                           <td className="px-4 py-3">
-                            <Badge className={lowStock ? "bg-amber-500/15 text-amber-200" : "bg-primary/15 text-primary"}>
+                            <Badge
+                              className={
+                                lowStock
+                                  ? "bg-amber-500/15 text-amber-200"
+                                  : "bg-primary/15 text-primary"
+                              }
+                            >
                               {item.estado}
                             </Badge>
                           </td>
-                          <td className="px-4 py-3">{formatDate(item.ultimaActualizacion)}</td>
+                          <td className="px-4 py-3">
+                            {formatDate(item.ultimaActualizacion)}
+                          </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
-                        <p>No hay refacciones para los filtros seleccionados.</p>
+                      <td
+                        colSpan={11}
+                        className="px-4 py-8 text-center text-muted-foreground"
+                      >
+                        <p>
+                          No hay refacciones para los filtros seleccionados.
+                        </p>
                         <button
                           className="mt-3 rounded-xl border border-white/10 px-3 py-2 hover:bg-white/10"
                           onClick={() => void loadInventory()}
@@ -213,7 +245,8 @@ export default function InventoryPage() {
 
             <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
               <span>
-                Mostrando {pageItems.length} de {filtered.length} registros · página {page} de {totalPages}
+                Mostrando {pageItems.length} de {filtered.length} registros ·
+                página {page} de {totalPages}
               </span>
               <div className="flex gap-2">
                 <button
@@ -251,7 +284,11 @@ function Select({
   options: readonly string[];
 }) {
   return (
-    <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select
+      className="field"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
       <option value="">{label}</option>
       {options.map((option) => (
         <option key={option} value={option}>
@@ -259,15 +296,6 @@ function Select({
         </option>
       ))}
     </select>
-  );
-}
-
-function Message({ tone, text }: { tone: "error" | "success"; text: string }) {
-  return (
-    <div className={`mt-3 flex items-center gap-2 rounded-2xl border p-3 text-sm ${tone === "error" ? "border-red-400/30 bg-red-500/10 text-red-100" : "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"}`}>
-      <AlertCircle className="h-4 w-4" />
-      {text}
-    </div>
   );
 }
 

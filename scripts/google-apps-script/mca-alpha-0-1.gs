@@ -4,6 +4,7 @@
  * - GET  ?accion=activos: returns rows from sheet "ACT_Activos" as JSON objects.
  * - GET  ?accion=ordenesTrabajo: returns rows from sheet "OT_OrdenesTrabajo".
  * - GET  ?accion=inventario: returns rows from sheet "INV_Refacciones" as JSON objects.
+ * - GET  ?accion=historial: returns rows from sheet "MNT_Historial" as JSON objects.
  * - POST { accion: "crearOrdenTrabajo", ... }: appends a row to "OT_OrdenesTrabajo".
  * - POST { accion: "actualizarEstadoOrdenTrabajo", folio, estado, notaCierre? }: updates only Estado.
  * - GET  ?accion=preventivos: returns rows from sheet "PM_Preventivos".
@@ -18,6 +19,7 @@ const SHEET_ACTIVOS = "ACT_Activos";
 const SHEET_OT = "OT_OrdenesTrabajo";
 const SHEET_PM = "PM_Preventivos";
 const SHEET_INVENTORY = "INV_Refacciones";
+const SHEET_HISTORY = "MNT_Historial";
 const OPERATIONAL_TIME_ZONE = "America/Mazatlan";
 const OT_HEADERS = [
   "Folio",
@@ -66,6 +68,23 @@ const INVENTORY_HEADERS = [
   "Estado",
   "Última actualización",
 ];
+const HISTORY_HEADERS = [
+  "IdHistorial",
+  "FolioOT",
+  "FechaCierre",
+  "CodigoActivo",
+  "Activo",
+  "TipoMantenimiento",
+  "FallaDetectada",
+  "TrabajoRealizado",
+  "Tecnico",
+  "TiempoParoHoras",
+  "CostoRefacciones",
+  "CostoManoObra",
+  "CostoTotal",
+  "EstadoFinal",
+  "Observaciones",
+];
 
 function doGet(e) {
   const accion = e && e.parameter ? e.parameter.accion : "";
@@ -84,6 +103,10 @@ function doGet(e) {
 
   if (accion === "inventario") {
     return jsonResponse(readSheetAsObjects_(SHEET_INVENTORY));
+  }
+
+  if (accion === "historial") {
+    return jsonResponse(readSheetAsObjects_(SHEET_HISTORY));
   }
 
   return jsonResponse({ ok: false, error: "Accion no soportada." });
@@ -394,6 +417,8 @@ function nextWorkOrderFolio_(sheet) {
 
 function readSheetAsObjects_(sheetName) {
   const sheet = getSheet_(sheetName);
+  if (sheetName === SHEET_HISTORY)
+    ensureHeaders_(sheet, HISTORY_HEADERS, SHEET_HISTORY);
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) return [];
   const headers = values[0].map(String);

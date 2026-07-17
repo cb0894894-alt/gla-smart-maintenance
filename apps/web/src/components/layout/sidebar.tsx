@@ -23,7 +23,7 @@ const navigation = [
     href: "/mantenimiento-preventivo",
   },
   { label: "Inventario", icon: Package, href: "/inventario" },
-  { label: "Historial", icon: History, href: "/#historial" },
+  { label: "Historial", icon: History, href: "/historial" },
   { label: "Indicadores", icon: Gauge, href: "/#indicadores" },
 ];
 
