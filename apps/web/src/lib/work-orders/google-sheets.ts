@@ -71,6 +71,29 @@ export type UpdateWorkOrderStatusInput = {
   estado: WorkOrderStatus;
   notaCierre?: string;
 };
+export type CloseWorkOrderInput = {
+  folio: string;
+  fechaCierre: string;
+  tipoMantenimiento: string;
+  fallaDetectada: string;
+  trabajoRealizado: string;
+  tecnico: string;
+  tiempoParoHoras: number | string;
+  costoRefacciones: number | string;
+  costoManoObra: number | string;
+  estadoFinal: string;
+  observaciones?: string;
+};
+export type CloseWorkOrderPayload = Omit<
+  CloseWorkOrderInput,
+  "tiempoParoHoras" | "costoRefacciones" | "costoManoObra"
+> & {
+  accion: "cerrarOrdenTrabajo";
+  tiempoParoHoras: number;
+  costoRefacciones: number;
+  costoManoObra: number;
+  costoTotal: number;
+};
 
 const FIELD_ALIASES: Record<keyof WorkOrder, string[]> = {
   folio: ["folio"],
@@ -213,6 +236,62 @@ export function getWorkOrderIndicators(orders: WorkOrder[]) {
     prioridadCritica: orders.filter((o) => o.prioridad === "Crítica").length,
   };
 }
+
+export function calculateCloseWorkOrderTotal(
+  input: Pick<CloseWorkOrderInput, "costoRefacciones" | "costoManoObra">,
+) {
+  return Number(input.costoRefacciones || 0) + Number(input.costoManoObra || 0);
+}
+export function validateCloseWorkOrder(input: CloseWorkOrderInput) {
+  const errors: Partial<Record<keyof CloseWorkOrderInput, string>> = {};
+  const required: Array<keyof CloseWorkOrderInput> = [
+    "folio",
+    "fechaCierre",
+    "tipoMantenimiento",
+    "fallaDetectada",
+    "trabajoRealizado",
+    "tecnico",
+    "estadoFinal",
+  ];
+  required.forEach((field) => {
+    if (!String(input[field] ?? "").trim())
+      errors[field] = "Campo obligatorio.";
+  });
+  (["tiempoParoHoras", "costoRefacciones", "costoManoObra"] as const).forEach(
+    (field) => {
+      const value = Number(input[field]);
+      if (String(input[field] ?? "").trim() === "" || Number.isNaN(value))
+        errors[field] = "Captura un número válido.";
+      else if (value < 0) errors[field] = "El valor no puede ser negativo.";
+    },
+  );
+  return errors;
+}
+export function buildCloseWorkOrderPayload(
+  input: CloseWorkOrderInput,
+): CloseWorkOrderPayload {
+  const errors = validateCloseWorkOrder(input);
+  if (Object.keys(errors).length)
+    throw new Error("Completa los campos obligatorios del cierre.");
+  const costoRefacciones = Number(input.costoRefacciones);
+  const costoManoObra = Number(input.costoManoObra);
+  return {
+    accion: "cerrarOrdenTrabajo",
+    folio: input.folio.trim(),
+    fechaCierre: input.fechaCierre,
+    tipoMantenimiento: input.tipoMantenimiento.trim(),
+    fallaDetectada: input.fallaDetectada.trim(),
+    trabajoRealizado: input.trabajoRealizado.trim(),
+    tecnico: input.tecnico.trim(),
+    tiempoParoHoras: Number(input.tiempoParoHoras),
+    costoRefacciones,
+    costoManoObra,
+    costoTotal: costoRefacciones + costoManoObra,
+    estadoFinal: input.estadoFinal.trim(),
+    observaciones: input.observaciones?.trim() || "",
+  };
+}
+
 export function validateStatusUpdate(input: UpdateWorkOrderStatusInput) {
   if (!input.folio) return "Selecciona una OT.";
   if (!WORK_ORDER_STATUSES.includes(input.estado))
@@ -258,5 +337,27 @@ export async function updateWorkOrderStatus(input: UpdateWorkOrderStatusInput) {
   };
   if (data.ok === false)
     throw new Error(data.error || "La API no pudo actualizar la OT.");
+  return data;
+}
+
+export async function closeWorkOrder(input: CloseWorkOrderInput) {
+  const payload = buildCloseWorkOrderPayload(input);
+  const response = await fetch(getApiUrl(), {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`La API respondió con ${response.status}.`);
+  const data = (await response.json()) as {
+    ok?: boolean;
+    error?: string;
+    folio?: string;
+    estado?: string;
+    idHistorial?: string;
+    alreadyClosed?: boolean;
+    duplicateHistory?: boolean;
+  };
+  if (data.ok === false)
+    throw new Error(data.error || "La API no pudo cerrar la OT.");
   return data;
 }

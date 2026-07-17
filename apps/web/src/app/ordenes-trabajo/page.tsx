@@ -6,12 +6,15 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  calculateCloseWorkOrderTotal,
+  closeWorkOrder,
   filterWorkOrders,
   fetchWorkOrders,
   getWorkOrderIndicators,
   updateWorkOrderStatus,
   WORK_ORDER_PRIORITIES,
   WORK_ORDER_STATUSES,
+  type CloseWorkOrderInput,
   type WorkOrder,
   type WorkOrderStatus,
 } from "@/lib/work-orders/google-sheets";
@@ -30,6 +33,11 @@ export default function WorkOrdersPage() {
   const [selected, setSelected] = useState<WorkOrder | null>(null),
     [nextStatus, setNextStatus] = useState<WorkOrderStatus>("Abierta"),
     [closingNote, setClosingNote] = useState("");
+  const [closeOrder, setCloseOrder] = useState<WorkOrder | null>(null),
+    [closeForm, setCloseForm] = useState<CloseWorkOrderInput>(emptyCloseForm()),
+    [closeMessage, setCloseMessage] = useState<string | null>(null),
+    [closeError, setCloseError] = useState<string | null>(null),
+    [isClosing, setIsClosing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false),
     [updateMessage, setUpdateMessage] = useState<string | null>(null),
     [updateError, setUpdateError] = useState<string | null>(null);
@@ -61,6 +69,18 @@ export default function WorkOrdersPage() {
     setUpdateError(null);
     setUpdateMessage(null);
   }, [selected]);
+  useEffect(() => {
+    if (!closeOrder) return;
+    setCloseForm({
+      ...emptyCloseForm(),
+      folio: closeOrder.folio,
+      fechaCierre: new Date().toISOString().slice(0, 10),
+      fallaDetectada: closeOrder.descripcionFalla,
+      estadoFinal: closeOrder.estado,
+    });
+    setCloseError(null);
+    setCloseMessage(null);
+  }, [closeOrder]);
   const filtered = useMemo(
     () => filterWorkOrders(orders, { search, estado, prioridad, area }),
     [orders, search, estado, prioridad, area],
@@ -72,6 +92,36 @@ export default function WorkOrdersPage() {
   );
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageOrders = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  function updateCloseField(field: keyof CloseWorkOrderInput, value: string) {
+    setCloseForm((current) => ({ ...current, [field]: value }));
+  }
+  async function handleCloseWorkOrder() {
+    if (!closeOrder || isClosing) return;
+    if (
+      !window.confirm(`¿Cerrar definitivamente la orden ${closeOrder.folio}?`)
+    )
+      return;
+    setIsClosing(true);
+    setCloseError(null);
+    setCloseMessage(null);
+    try {
+      const result = await closeWorkOrder(closeForm);
+      setCloseMessage(
+        result.alreadyClosed
+          ? "La orden ya estaba cerrada; no se duplicó el historial."
+          : "Orden cerrada e historial generado correctamente.",
+      );
+      await loadOrders();
+      setSelected(null);
+    } catch (caught) {
+      setCloseError(
+        caught instanceof Error ? caught.message : "No se pudo cerrar la OT.",
+      );
+    } finally {
+      setIsClosing(false);
+    }
+  }
   async function handleStatusUpdate() {
     if (!selected || isUpdating) return;
     setIsUpdating(true);
@@ -229,12 +279,22 @@ export default function WorkOrdersPage() {
                         <td className="px-4 py-3">{order.condicionEquipo}</td>
                         <td className="px-4 py-3">{order.estado}</td>
                         <td className="px-4 py-3">
-                          <button
-                            className="rounded-xl border border-white/10 px-3 py-2 hover:bg-white/10"
-                            onClick={() => setSelected(order)}
-                          >
-                            Detalle
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              className="rounded-xl border border-white/10 px-3 py-2 hover:bg-white/10"
+                              onClick={() => setSelected(order)}
+                            >
+                              Detalle
+                            </button>
+                            {order.estado !== "Cerrada" ? (
+                              <button
+                                className="rounded-xl bg-primary px-3 py-2 font-semibold text-primary-foreground hover:opacity-90"
+                                onClick={() => setCloseOrder(order)}
+                              >
+                                Cerrar orden
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -275,6 +335,103 @@ export default function WorkOrdersPage() {
             </div>
           </CardContent>
         </Card>
+
+        {closeOrder ? (
+          <div className="fixed inset-0 z-40 overflow-y-auto bg-slate-950/80 p-4 backdrop-blur">
+            <Card className="mx-auto max-w-4xl bg-slate-950">
+              <CardHeader>
+                <CardTitle>Cerrar orden {closeOrder.folio}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field
+                    label="Fecha de cierre"
+                    type="date"
+                    value={closeForm.fechaCierre}
+                    onChange={(v) => updateCloseField("fechaCierre", v)}
+                  />
+                  <Field
+                    label="Tipo de mantenimiento"
+                    value={closeForm.tipoMantenimiento}
+                    onChange={(v) => updateCloseField("tipoMantenimiento", v)}
+                  />
+                  <Field
+                    label="Falla detectada"
+                    value={closeForm.fallaDetectada}
+                    onChange={(v) => updateCloseField("fallaDetectada", v)}
+                  />
+                  <Field
+                    label="Trabajo realizado"
+                    value={closeForm.trabajoRealizado}
+                    onChange={(v) => updateCloseField("trabajoRealizado", v)}
+                  />
+                  <Field
+                    label="Técnico"
+                    value={closeForm.tecnico}
+                    onChange={(v) => updateCloseField("tecnico", v)}
+                  />
+                  <Field
+                    label="Tiempo de paro en horas"
+                    type="number"
+                    value={String(closeForm.tiempoParoHoras)}
+                    onChange={(v) => updateCloseField("tiempoParoHoras", v)}
+                  />
+                  <Field
+                    label="Costo de refacciones"
+                    type="number"
+                    value={String(closeForm.costoRefacciones)}
+                    onChange={(v) => updateCloseField("costoRefacciones", v)}
+                  />
+                  <Field
+                    label="Costo de mano de obra"
+                    type="number"
+                    value={String(closeForm.costoManoObra)}
+                    onChange={(v) => updateCloseField("costoManoObra", v)}
+                  />
+                  <Field
+                    label="Estado final"
+                    value={closeForm.estadoFinal}
+                    onChange={(v) => updateCloseField("estadoFinal", v)}
+                  />
+                  <div className="rounded-2xl border border-white/10 p-3">
+                    <p className="text-xs text-muted-foreground">CostoTotal</p>
+                    <p className="mt-1 text-xl font-black">
+                      ${calculateCloseWorkOrderTotal(closeForm).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+                <textarea
+                  className="field min-h-24"
+                  placeholder="Observaciones"
+                  value={closeForm.observaciones}
+                  onChange={(e) =>
+                    updateCloseField("observaciones", e.target.value)
+                  }
+                />
+                {closeError ? <Message tone="error" text={closeError} /> : null}
+                {closeMessage ? (
+                  <Message tone="success" text={closeMessage} />
+                ) : null}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    className="rounded-xl bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50"
+                    disabled={isClosing}
+                    onClick={handleCloseWorkOrder}
+                  >
+                    {isClosing ? "Cerrando..." : "Confirmar cierre"}
+                  </button>
+                  <button
+                    className="rounded-xl border border-white/10 px-4 py-2"
+                    disabled={isClosing}
+                    onClick={() => setCloseOrder(null)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : null}
         {selected ? (
           <div className="fixed inset-0 z-30 overflow-y-auto bg-slate-950/80 p-4 backdrop-blur">
             <Card className="mx-auto max-w-4xl bg-slate-950">
@@ -352,6 +509,46 @@ export default function WorkOrdersPage() {
         ) : null}
       </section>
     </main>
+  );
+}
+function emptyCloseForm(): CloseWorkOrderInput {
+  return {
+    folio: "",
+    fechaCierre: "",
+    tipoMantenimiento: "",
+    fallaDetectada: "",
+    trabajoRealizado: "",
+    tecnico: "",
+    tiempoParoHoras: "0",
+    costoRefacciones: "0",
+    costoManoObra: "0",
+    estadoFinal: "Operativo",
+    observaciones: "",
+  };
+}
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <label className="space-y-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <input
+        className="field"
+        min={type === "number" ? 0 : undefined}
+        step={type === "number" ? "0.01" : undefined}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
   );
 }
 function Select({
