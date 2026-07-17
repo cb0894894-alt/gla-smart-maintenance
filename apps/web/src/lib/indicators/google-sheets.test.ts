@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   filterIndicators,
+  formatIndicatorPeriod,
   getIndicatorsApiUrl,
   getLatestPeriodVariation,
+  normalizeIndicatorPeriod,
   parseIndicatorNumber,
   parseIndicatorsResponse,
   sortIndicatorsByPeriod,
@@ -22,7 +24,7 @@ describe("indicators google sheets helpers", () => {
         OrdenesPreventivas: "18",
         HorasParo: "12.25",
         CostoMantenimiento: "$10,500.50",
-        FechaActualizacion: "2026-07-01",
+        FechaActualizacion: "2026-07-01T23:30:00.000Z",
       },
     ]);
 
@@ -37,8 +39,24 @@ describe("indicators google sheets helpers", () => {
       ordenesPreventivas: 18,
       horasParo: 12.25,
       costoMantenimiento: 10500.5,
-      fechaActualizacion: "2026-07-01",
+      fechaActualizacion: "01/07/2026",
     });
+  });
+
+  it("normalizes ISO periods without shifting the month by timezone", () => {
+    expect(normalizeIndicatorPeriod("2026-01-01T07:00:00.000Z")).toBe(
+      "2026-01",
+    );
+    expect(normalizeIndicatorPeriod("2026-02")).toBe("2026-02");
+    expect(normalizeIndicatorPeriod(new Date("2026-03-01T00:30:00.000Z"))).toBe(
+      "2026-03",
+    );
+  });
+
+  it("formats normalized periods for display", () => {
+    expect(formatIndicatorPeriod("2026-01")).toBe("Ene 2026");
+    expect(formatIndicatorPeriod("2026-02")).toBe("Feb 2026");
+    expect(formatIndicatorPeriod("2026-03")).toBe("Mar 2026");
   });
 
   it("sorts by period and applies branch/range filters", () => {
@@ -48,11 +66,9 @@ describe("indicators google sheets helpers", () => {
       { Periodo: "2026-02", Sucursal: "Sur", DisponibilidadPct: 92 },
     ]);
 
-    expect(sortIndicatorsByPeriod(records).map((record) => record.periodo)).toEqual([
-      "2026-01",
-      "2026-02",
-      "2026-03",
-    ]);
+    expect(
+      sortIndicatorsByPeriod(records).map((record) => record.periodo),
+    ).toEqual(["2026-01", "2026-02", "2026-03"]);
     expect(
       filterIndicators(records, {
         sucursal: "Norte",
@@ -100,7 +116,10 @@ describe("indicators google sheets helpers", () => {
   });
 
   it("parses numeric calculations and builds the indicadores API url", () => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://script.google.com/macros/s/demo/exec?x=1");
+    vi.stubEnv(
+      "NEXT_PUBLIC_API_URL",
+      "https://script.google.com/macros/s/demo/exec?x=1",
+    );
 
     expect(parseIndicatorNumber("$1,234.50 MXN")).toBe(1234.5);
     expect(getIndicatorsApiUrl()).toBe(
