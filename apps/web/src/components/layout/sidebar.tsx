@@ -22,7 +22,7 @@ const navigation = [
     icon: ShieldCheck,
     href: "/mantenimiento-preventivo",
   },
-  { label: "Inventario", icon: Package, href: "/#inventario" },
+  { label: "Inventario", icon: Package, href: "/inventario" },
   { label: "Historial", icon: History, href: "/#historial" },
   { label: "Indicadores", icon: Gauge, href: "/#indicadores" },
 ];

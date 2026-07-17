@@ -3,6 +3,7 @@
  * Supported actions:
  * - GET  ?accion=activos: returns rows from sheet "ACT_Activos" as JSON objects.
  * - GET  ?accion=ordenesTrabajo: returns rows from sheet "OT_OrdenesTrabajo".
+ * - GET  ?accion=inventario: returns rows from sheet "INV_Refacciones" as JSON objects.
  * - POST { accion: "crearOrdenTrabajo", ... }: appends a row to "OT_OrdenesTrabajo".
  * - POST { accion: "actualizarEstadoOrdenTrabajo", folio, estado, notaCierre? }: updates only Estado.
  * - GET  ?accion=preventivos: returns rows from sheet "PM_Preventivos".
@@ -16,6 +17,7 @@
 const SHEET_ACTIVOS = "ACT_Activos";
 const SHEET_OT = "OT_OrdenesTrabajo";
 const SHEET_PM = "PM_Preventivos";
+const SHEET_INVENTORY = "INV_Refacciones";
 const OPERATIONAL_TIME_ZONE = "America/Mazatlan";
 const OT_HEADERS = [
   "Folio",
@@ -51,6 +53,19 @@ const PM_HEADERS = [
   "FechaCreacion",
   "FechaActualizacion",
 ];
+const INVENTORY_HEADERS = [
+  "Código",
+  "Refacción",
+  "Categoría",
+  "Existencia",
+  "Stock mínimo",
+  "Unidad",
+  "Ubicación",
+  "Proveedor",
+  "Costo unitario",
+  "Estado",
+  "Última actualización",
+];
 
 function doGet(e) {
   const accion = e && e.parameter ? e.parameter.accion : "";
@@ -65,6 +80,10 @@ function doGet(e) {
 
   if (accion === "preventivos") {
     return jsonResponse(readSheetAsObjects_(SHEET_PM));
+  }
+
+  if (accion === "inventario") {
+    return jsonResponse(readSheetAsObjects_(SHEET_INVENTORY));
   }
 
   return jsonResponse({ ok: false, error: "Accion no soportada." });
