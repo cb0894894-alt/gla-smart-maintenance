@@ -256,18 +256,7 @@ function updateWorkOrderStatus_(payload) {
 }
 
 function closeWorkOrder_(payload) {
-  validateRequired_(payload, [
-    "folio",
-    "fechaCierre",
-    "tipoMantenimiento",
-    "fallaDetectada",
-    "trabajoRealizado",
-    "tecnico",
-    "estadoFinal",
-  ]);
-  validateNonNegativeNumber_(payload, "tiempoParoHoras");
-  validateNonNegativeNumber_(payload, "costoRefacciones");
-  validateNonNegativeNumber_(payload, "costoManoObra");
+  validateRequired_(payload, ["folio"]);
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -300,8 +289,11 @@ function closeWorkOrder_(payload) {
         String(row[historyFolioIndex]).trim() === String(payload.folio).trim()
       );
     });
+    const orderIsAlreadyClosed =
+      String(otValues[rowIndex][estadoIndex]).trim() === "Cerrada";
+
     if (duplicateIndex !== -1) {
-      if (String(otValues[rowIndex][estadoIndex]).trim() !== "Cerrada") {
+      if (!orderIsAlreadyClosed) {
         otSheet.getRange(rowIndex + 1, estadoIndex + 1).setValue("Cerrada");
       }
       return {
@@ -315,12 +307,19 @@ function closeWorkOrder_(payload) {
       };
     }
 
-    if (String(otValues[rowIndex][estadoIndex]).trim() === "Cerrada") {
-      throw new Error(
-        "La OT " +
-          payload.folio +
-          " ya está cerrada pero no tiene registro en MNT_Historial.",
-      );
+    try {
+      validateCloseHistoryPayload_(payload);
+    } catch (validationError) {
+      if (orderIsAlreadyClosed) {
+        throw new Error(
+          "La OT " +
+            payload.folio +
+            " ya está cerrada pero requiere completar su historial en MNT_Historial. " +
+            "Envía los datos de cierre completos para reconstruirlo. Detalle: " +
+            String(validationError.message || validationError),
+        );
+      }
+      throw validationError;
     }
 
     const costoRefacciones = Number(payload.costoRefacciones);
@@ -350,21 +349,23 @@ function closeWorkOrder_(payload) {
     try {
       historySheet.appendRow(historyRow);
       appendedHistoryRowNumber = historySheet.getLastRow();
-      writeOptionalColumn_(
-        otSheet,
-        otHeaders,
-        rowIndex + 1,
-        "FechaHoraActualizacion",
-        new Date(),
-      );
-      writeOptionalColumn_(
-        otSheet,
-        otHeaders,
-        rowIndex + 1,
-        "NotaCierre",
-        String(payload.observaciones || payload.trabajoRealizado).trim(),
-      );
-      otSheet.getRange(rowIndex + 1, estadoIndex + 1).setValue("Cerrada");
+      if (!orderIsAlreadyClosed) {
+        writeOptionalColumn_(
+          otSheet,
+          otHeaders,
+          rowIndex + 1,
+          "FechaHoraActualizacion",
+          new Date(),
+        );
+        writeOptionalColumn_(
+          otSheet,
+          otHeaders,
+          rowIndex + 1,
+          "NotaCierre",
+          String(payload.observaciones || payload.trabajoRealizado).trim(),
+        );
+        otSheet.getRange(rowIndex + 1, estadoIndex + 1).setValue("Cerrada");
+      }
     } catch (error) {
       rollbackHistoryAppend_(
         historySheet,
@@ -388,6 +389,21 @@ function closeWorkOrder_(payload) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function validateCloseHistoryPayload_(payload) {
+  validateRequired_(payload, [
+    "folio",
+    "fechaCierre",
+    "tipoMantenimiento",
+    "fallaDetectada",
+    "trabajoRealizado",
+    "tecnico",
+    "estadoFinal",
+  ]);
+  validateNonNegativeNumber_(payload, "tiempoParoHoras");
+  validateNonNegativeNumber_(payload, "costoRefacciones");
+  validateNonNegativeNumber_(payload, "costoManoObra");
 }
 
 function rollbackHistoryAppend_(sheet, rowNumber, idHistorial) {
