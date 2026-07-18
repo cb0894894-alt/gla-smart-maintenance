@@ -47,7 +47,7 @@ const orders: WorkOrder[] = [
 
 afterEach(() => {
   vi.restoreAllMocks();
-  delete process.env.NEXT_PUBLIC_API_URL;
+  delete "http://localhost:3000/api/google-sheets";
 });
 
 describe("work orders Google Sheets helpers", () => {
@@ -235,7 +235,7 @@ describe("work orders Google Sheets helpers", () => {
       updateWorkOrderStatus({ folio: "OT-1", estado: "Asignada" }),
     ).resolves.toMatchObject({ ok: true });
     expect(fetchMock).toHaveBeenCalledWith(
-      process.env.NEXT_PUBLIC_API_URL,
+      "http://localhost:3000/api/google-sheets",
       expect.objectContaining({ method: "POST" }),
     );
   });

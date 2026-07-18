@@ -29,7 +29,12 @@ const FIELD_ALIASES: Record<keyof InventoryItem, string[]> = {
   proveedor: ["proveedor", "supplier"],
   costoUnitario: ["costo unitario", "costo", "precio unitario"],
   estado: ["estado", "status"],
-  ultimaActualizacion: ["ultima actualizacion", "última actualización", "ultimaactualizacion", "fecha actualizacion"],
+  ultimaActualizacion: [
+    "ultima actualizacion",
+    "última actualización",
+    "ultimaactualizacion",
+    "fecha actualizacion",
+  ],
 };
 
 function normalizeKey(key: string) {
@@ -40,14 +45,37 @@ function normalizeKey(key: string) {
     .trim();
 }
 
-function readInventoryField(record: Record<string, unknown>, field: "codigo" | "refaccion" | "categoria" | "unidad" | "ubicacion" | "proveedor" | "estado" | "ultimaActualizacion"): string;
-function readInventoryField(record: Record<string, unknown>, field: "existencia" | "stockMinimo" | "costoUnitario"): number;
-function readInventoryField(record: Record<string, unknown>, field: keyof InventoryItem) {
+function readInventoryField(
+  record: Record<string, unknown>,
+  field:
+    | "codigo"
+    | "refaccion"
+    | "categoria"
+    | "unidad"
+    | "ubicacion"
+    | "proveedor"
+    | "estado"
+    | "ultimaActualizacion",
+): string;
+function readInventoryField(
+  record: Record<string, unknown>,
+  field: "existencia" | "stockMinimo" | "costoUnitario",
+): number;
+function readInventoryField(
+  record: Record<string, unknown>,
+  field: keyof InventoryItem,
+) {
   const aliases = FIELD_ALIASES[field].map(normalizeKey);
-  const sourceKey = Object.keys(record).find((key) => aliases.includes(normalizeKey(key)));
+  const sourceKey = Object.keys(record).find((key) =>
+    aliases.includes(normalizeKey(key)),
+  );
   const value = sourceKey ? record[sourceKey] : undefined;
 
-  if (field === "existencia" || field === "stockMinimo" || field === "costoUnitario") {
+  if (
+    field === "existencia" ||
+    field === "stockMinimo" ||
+    field === "costoUnitario"
+  ) {
     const numericValue =
       typeof value === "number"
         ? value
@@ -61,8 +89,12 @@ function readInventoryField(record: Record<string, unknown>, field: keyof Invent
 }
 
 function getApiUrl() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!apiUrl) throw new Error("NEXT_PUBLIC_API_URL no está configurada.");
+  if (typeof window !== "undefined")
+    return `${window.location.origin}/api/google-sheets`;
+  const apiUrl =
+    process.env.GOOGLE_APPS_SCRIPT_API_URL ?? process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl)
+    throw new Error("GOOGLE_APPS_SCRIPT_API_URL no está configurada.");
   return apiUrl;
 }
 
@@ -79,7 +111,8 @@ export function parseInventoryResponse(data: unknown): InventoryItem[] {
 
   return data
     .filter(
-      (item): item is Record<string, unknown> => typeof item === "object" && item !== null,
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" && item !== null,
     )
     .map((item) => ({
       codigo: readInventoryField(item, "codigo"),
@@ -99,17 +132,21 @@ export function parseInventoryResponse(data: unknown): InventoryItem[] {
 
 export async function fetchInventory() {
   const response = await fetch(getInventoryApiUrl());
-  if (!response.ok) throw new Error(`La API de inventario respondió con ${response.status}.`);
+  if (!response.ok)
+    throw new Error(`La API de inventario respondió con ${response.status}.`);
   return parseInventoryResponse(await response.json());
 }
 
-export function filterInventoryItems(items: InventoryItem[], filters: InventoryFilters) {
+export function filterInventoryItems(
+  items: InventoryItem[],
+  filters: InventoryFilters,
+) {
   const query = filters.search.trim().toLowerCase();
   return items.filter((item) => {
     const matchesSearch =
       !query ||
-      [item.codigo, item.refaccion, item.proveedor, item.ubicacion].some((value) =>
-        value.toLowerCase().includes(query),
+      [item.codigo, item.refaccion, item.proveedor, item.ubicacion].some(
+        (value) => value.toLowerCase().includes(query),
       );
     return (
       matchesSearch &&
@@ -122,8 +159,13 @@ export function filterInventoryItems(items: InventoryItem[], filters: InventoryF
 export function getInventoryIndicators(items: InventoryItem[]) {
   return {
     total: items.length,
-    bajas: items.filter((item) => item.existencia <= item.stockMinimo && item.existencia > 0).length,
+    bajas: items.filter(
+      (item) => item.existencia <= item.stockMinimo && item.existencia > 0,
+    ).length,
     agotadas: items.filter((item) => item.existencia === 0).length,
-    valorInventario: items.reduce((sum, item) => sum + item.existencia * item.costoUnitario, 0),
+    valorInventario: items.reduce(
+      (sum, item) => sum + item.existencia * item.costoUnitario,
+      0,
+    ),
   };
 }

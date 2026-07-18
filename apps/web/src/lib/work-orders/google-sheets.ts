@@ -140,8 +140,12 @@ function readField(record: Record<string, unknown>, field: keyof WorkOrder) {
     : "";
 }
 function getApiUrl() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!apiUrl) throw new Error("NEXT_PUBLIC_API_URL no está configurada.");
+  if (typeof window !== "undefined")
+    return `${window.location.origin}/api/google-sheets`;
+  const apiUrl =
+    process.env.GOOGLE_APPS_SCRIPT_API_URL ?? process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl)
+    throw new Error("GOOGLE_APPS_SCRIPT_API_URL no está configurada.");
   return apiUrl;
 }
 export function getWorkOrdersApiUrl() {

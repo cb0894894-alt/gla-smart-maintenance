@@ -56,7 +56,7 @@ describe("role authorization", () => {
     expect(getDefaultPathForRole("Administrador")).toBe("/");
     expect(getDefaultPathForRole("Supervisor")).toBe("/");
     expect(getDefaultPathForRole("Técnico")).toBe("/activos");
-    expect(getDefaultPathForRole("Consulta")).toBe("/");
+    expect(getDefaultPathForRole("Consulta")).toBe("/activos");
   });
   it("denies invalid roles instead of allowing dashboard or data routes", () => {
     expect(normalizeRole("Gerente")).toBeNull();

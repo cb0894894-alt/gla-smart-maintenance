@@ -12,7 +12,7 @@ describe("users google sheets", () => {
       "https://script.google.com/macros/s/demo/exec",
     );
     expect(getUsersApiUrl()).toBe(
-      "https://script.google.com/macros/s/demo/exec?accion=usuarios",
+      "http://localhost:3000/api/google-sheets?accion=usuarios",
     );
     vi.unstubAllEnvs();
   });
