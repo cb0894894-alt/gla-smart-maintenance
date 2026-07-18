@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { Ban } from "lucide-react";
+export default function AccessDeniedPage() { return <main className="flex min-h-screen items-center justify-center p-6"><section className="max-w-lg rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center"><Ban className="mx-auto h-12 w-12 text-red-300" /><h1 className="mt-4 text-3xl font-black">Acceso denegado</h1><p className="mt-3 text-muted-foreground">Tu correo no existe en CFG_Usuarios, está Inactivo o tu rol no tiene permiso para este módulo.</p><Link className="mt-6 inline-flex rounded-2xl bg-primary px-5 py-3 font-semibold text-primary-foreground" href="/">Volver al inicio</Link></section></main>; }
