@@ -6,12 +6,15 @@
  * - GET  ?accion=inventario: returns rows from sheet "INV_Refacciones" as JSON objects.
  * - GET  ?accion=historial: returns rows from sheet "MNT_Historial" as JSON objects.
  * - GET  ?accion=indicadores: returns rows from sheet "KPI_Indicadores" as JSON objects.
+ * - GET  ?accion=usuarios: returns rows from sheet "CFG_Usuarios" as JSON objects.
  * - POST { accion: "crearOrdenTrabajo", ... }: appends a row to "OT_OrdenesTrabajo".
  * - POST { accion: "actualizarEstadoOrdenTrabajo", folio, estado, notaCierre? }: updates only Estado.
  * - POST { accion: "cerrarOrdenTrabajo", folio, ... }: closes an OT and appends MNT_Historial idempotently.
  * - GET  ?accion=preventivos: returns rows from sheet "PM_Preventivos".
  * - POST { accion: "crearPreventivo", ... }: appends a preventive plan to "PM_Preventivos".
  * - POST { accion: "registrarEjecucionPreventivo", idPM, fechaEjecucion }: updates UltimaEjecucion and ProximaEjecucion.
+ * - POST { accion: "crearUsuario", ... }: appends a row to "CFG_Usuarios".
+ * - POST { accion: "actualizarUsuario", idUsuario, ... }: updates a row in "CFG_Usuarios".
  *
  * Expected OT_OrdenesTrabajo columns:
  * Folio, FechaHoraReporte, CodigoActivo, Activo, Area, Criticidad, Reporta,
@@ -23,6 +26,7 @@ const SHEET_PM = "PM_Preventivos";
 const SHEET_INVENTORY = "INV_Refacciones";
 const SHEET_HISTORY = "MNT_Historial";
 const SHEET_INDICATORS = "KPI_Indicadores";
+const SHEET_USERS = "CFG_Usuarios";
 const OPERATIONAL_TIME_ZONE = "America/Mazatlan";
 const OT_HEADERS = [
   "Folio",
@@ -101,6 +105,19 @@ const INDICATOR_HEADERS = [
   "CostoMantenimiento",
   "FechaActualizacion",
 ];
+const USER_HEADERS = [
+  "IdUsuario",
+  "Nombre",
+  "Correo",
+  "Rol",
+  "Sucursal",
+  "Area",
+  "Estado",
+  "FechaCreacion",
+  "FechaActualizacion",
+];
+const USER_ROLES = ["Administrador", "Supervisor", "Técnico", "Consulta"];
+const USER_STATUSES = ["Activo", "Inactivo"];
 
 function doGet(e) {
   const accion = e && e.parameter ? e.parameter.accion : "";
@@ -129,6 +146,10 @@ function doGet(e) {
     return jsonResponse(readSheetAsObjects_(SHEET_INDICATORS));
   }
 
+  if (accion === "usuarios") {
+    return jsonResponse(readSheetAsObjects_(SHEET_USERS));
+  }
+
   return jsonResponse({ ok: false, error: "Accion no soportada." });
 }
 
@@ -154,6 +175,14 @@ function doPost(e) {
 
     if (payload.accion === "registrarEjecucionPreventivo") {
       return jsonResponse(registerPreventiveExecution_(payload));
+    }
+
+    if (payload.accion === "crearUsuario") {
+      return jsonResponse(createUser_(payload));
+    }
+
+    if (payload.accion === "actualizarUsuario") {
+      return jsonResponse(updateUser_(payload));
     }
 
     return jsonResponse({ ok: false, error: "Accion no soportada." });
@@ -389,6 +418,148 @@ function closeWorkOrder_(payload) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function createUser_(payload) {
+  validateUserPayload_(payload, false);
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sheet = getSheet_(SHEET_USERS);
+    ensureHeaders_(sheet, USER_HEADERS, SHEET_USERS);
+    const values = sheet.getDataRange().getValues();
+    const headers = values[0].map(String);
+    const email = normalizeEmail_(payload.correo);
+    ensureUniqueUserEmail_(values, headers, email);
+
+    const now = new Date();
+    const idUsuario = nextUserId_(values);
+    sheet.appendRow([
+      idUsuario,
+      String(payload.nombre).trim(),
+      email,
+      String(payload.rol).trim(),
+      String(payload.sucursal).trim(),
+      String(payload.area).trim(),
+      String(payload.estado || "Activo").trim(),
+      now,
+      now,
+    ]);
+
+    return { ok: true, idUsuario: idUsuario };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function updateUser_(payload) {
+  validateRequired_(payload, ["idUsuario"]);
+  validateUserPayload_(payload, true);
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sheet = getSheet_(SHEET_USERS);
+    ensureHeaders_(sheet, USER_HEADERS, SHEET_USERS);
+    const values = sheet.getDataRange().getValues();
+    const headers = values[0].map(String);
+    const idIndex = headers.indexOf("IdUsuario");
+    const rowIndex = values.findIndex(function (row, index) {
+      return (
+        index > 0 &&
+        String(row[idIndex]).trim() === String(payload.idUsuario).trim()
+      );
+    });
+    if (rowIndex === -1)
+      throw new Error("No existe el usuario " + payload.idUsuario);
+
+    if (payload.correo)
+      ensureUniqueUserEmail_(
+        values,
+        headers,
+        normalizeEmail_(payload.correo),
+        rowIndex,
+      );
+
+    ["Nombre", "Correo", "Rol", "Sucursal", "Area", "Estado"].forEach(
+      function (header) {
+        const key = userPayloadKey_(header);
+        if (typeof payload[key] !== "undefined") {
+          const value =
+            header === "Correo"
+              ? normalizeEmail_(payload[key])
+              : String(payload[key]).trim();
+          sheet
+            .getRange(rowIndex + 1, headers.indexOf(header) + 1)
+            .setValue(value);
+        }
+      },
+    );
+    sheet
+      .getRange(rowIndex + 1, headers.indexOf("FechaActualizacion") + 1)
+      .setValue(new Date());
+
+    return { ok: true, idUsuario: payload.idUsuario };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function validateUserPayload_(payload, partial) {
+  if (!partial)
+    validateRequired_(payload, ["nombre", "correo", "rol", "sucursal", "area"]);
+  if (
+    payload.correo &&
+    !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizeEmail_(payload.correo))
+  )
+    throw new Error("Correo inválido.");
+  if (payload.rol && USER_ROLES.indexOf(String(payload.rol).trim()) === -1)
+    throw new Error("Rol no permitido: " + payload.rol);
+  if (
+    payload.estado &&
+    USER_STATUSES.indexOf(String(payload.estado).trim()) === -1
+  )
+    throw new Error("Estado no permitido: " + payload.estado);
+}
+
+function normalizeEmail_(email) {
+  return String(email || "")
+    .trim()
+    .toLowerCase();
+}
+
+function ensureUniqueUserEmail_(values, headers, email, currentRowIndex) {
+  const emailIndex = headers.indexOf("Correo");
+  const duplicateIndex = values.findIndex(function (row, index) {
+    return (
+      index > 0 &&
+      index !== currentRowIndex &&
+      normalizeEmail_(row[emailIndex]) === email
+    );
+  });
+  if (duplicateIndex !== -1)
+    throw new Error("Ya existe un usuario con el correo " + email);
+}
+
+function nextUserId_(values) {
+  let max = 0;
+  values.slice(1).forEach(function (row) {
+    const match = String(row[0] || "").match(/USR-(\d+)/);
+    if (match) max = Math.max(max, Number(match[1]));
+  });
+  return "USR-" + String(max + 1).padStart(4, "0");
+}
+
+function userPayloadKey_(header) {
+  return {
+    Nombre: "nombre",
+    Correo: "correo",
+    Rol: "rol",
+    Sucursal: "sucursal",
+    Area: "area",
+    Estado: "estado",
+  }[header];
 }
 
 function validateCloseHistoryPayload_(payload) {
@@ -631,6 +802,8 @@ function readSheetAsObjects_(sheetName) {
     ensureHeaders_(sheet, HISTORY_HEADERS, SHEET_HISTORY);
   if (sheetName === SHEET_INDICATORS)
     ensureHeaders_(sheet, INDICATOR_HEADERS, SHEET_INDICATORS);
+  if (sheetName === SHEET_USERS)
+    ensureHeaders_(sheet, USER_HEADERS, SHEET_USERS);
   const values = sheet.getDataRange().getValues();
   if (values.length < 2) return [];
   const headers = values[0].map(String);

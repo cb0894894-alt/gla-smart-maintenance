@@ -6,6 +6,7 @@ import {
   History,
   Package,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,7 @@ const navigation = [
     href: "/mantenimiento-preventivo",
   },
   { label: "Inventario", icon: Package, href: "/inventario" },
+  { label: "Usuarios", icon: Users, href: "/usuarios" },
   { label: "Historial", icon: History, href: "/historial" },
   { label: "Indicadores", icon: Gauge, href: "/indicadores" },
 ];
