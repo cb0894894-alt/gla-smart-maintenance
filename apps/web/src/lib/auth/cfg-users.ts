@@ -1,11 +1,13 @@
 import { fetchUsers, type User } from "@/lib/users/google-sheets";
-import { isRole, normalizeEmail, type Role } from "./permissions";
+import { normalizeEmail, normalizeRole, normalizeStatus, type Role } from "./permissions";
 
 export type AuthorizedCfgUser = User & { rol: Role; estado: "Activo" };
 
 export async function findActiveCfgUser(email: string): Promise<AuthorizedCfgUser | null> {
   const normalized = normalizeEmail(email);
   const user = (await fetchUsers()).find((item) => normalizeEmail(item.correo) === normalized);
-  if (!user || user.estado !== "Activo" || !isRole(user.rol)) return null;
-  return { ...user, rol: user.rol, estado: "Activo" };
+  const role = user ? normalizeRole(user.rol) : null;
+  const status = user ? normalizeStatus(user.estado) : "";
+  if (!user || status !== "Activo" || !role) return null;
+  return { ...user, rol: role, estado: "Activo" };
 }
