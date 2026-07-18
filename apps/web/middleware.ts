@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findActiveCfgUser } from "./src/lib/auth/cfg-users";
 import { canAccessPath } from "./src/lib/auth/permissions";
+import { logAuthFailure } from "./src/lib/auth/server";
 import { SESSION_COOKIE, verifySessionToken } from "./src/lib/auth/token";
 
 const PUBLIC_PATHS = [
@@ -36,14 +37,22 @@ export async function middleware(request: NextRequest) {
         secret,
       )
     : null;
-  if (!session)
+  if (!session) {
+    logAuthFailure("middleware", "missing_or_invalid_session_cookie");
     return NextResponse.redirect(
       new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url),
     );
+  }
 
   const cfgUser = await findActiveCfgUser(session.user.email).catch(() => null);
-  if (!cfgUser) return redirectToDeniedAndClearSession(request);
-  if (!canAccessPath(cfgUser.rol, pathname)) return redirectToDenied(request);
+  if (!cfgUser) {
+    logAuthFailure("middleware", "cfg_user_not_active_or_not_found");
+    return redirectToDeniedAndClearSession(request);
+  }
+  if (!canAccessPath(cfgUser.rol, pathname)) {
+    logAuthFailure("middleware", "role_cannot_access_path");
+    return redirectToDenied(request);
+  }
 
   return NextResponse.next();
 }
