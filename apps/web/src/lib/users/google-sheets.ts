@@ -1,13 +1,9 @@
-export const USER_ROLES = [
-  "Administrador",
-  "Supervisor",
-  "Técnico",
-  "Consulta",
-] as const;
-export const USER_STATUSES = ["Activo", "Inactivo"] as const;
-
-export type UserRole = (typeof USER_ROLES)[number];
-export type UserStatus = (typeof USER_STATUSES)[number];
+import type { Role as UserRole, UserStatus } from "@/lib/auth/roles";
+export {
+  ROLES as USER_ROLES,
+  STATUSES as USER_STATUSES,
+} from "@/lib/auth/roles";
+export type { UserRole, UserStatus };
 
 export type User = {
   idUsuario: string;
