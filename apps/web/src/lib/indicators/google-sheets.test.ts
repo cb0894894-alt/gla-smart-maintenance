@@ -123,7 +123,7 @@ describe("indicators google sheets helpers", () => {
 
     expect(parseIndicatorNumber("$1,234.50 MXN")).toBe(1234.5);
     expect(getIndicatorsApiUrl()).toBe(
-      "https://script.google.com/macros/s/demo/exec?x=1&accion=indicadores",
+      "http://localhost:3000/api/google-sheets?accion=indicadores",
     );
 
     vi.unstubAllEnvs();

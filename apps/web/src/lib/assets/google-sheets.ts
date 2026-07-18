@@ -38,11 +38,20 @@ function readAssetField(record: Record<string, unknown>, field: keyof Asset) {
     : "";
 }
 
+function getApiUrl() {
+  if (typeof window !== "undefined")
+    return `${window.location.origin}/api/google-sheets`;
+  const apiUrl =
+    process.env.GOOGLE_APPS_SCRIPT_API_URL ?? process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) return null;
+  return apiUrl;
+}
+
 export function getAssetsApiUrl() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const apiUrl = getApiUrl();
 
   if (!apiUrl) {
-    console.error("NEXT_PUBLIC_API_URL is not configured.");
+    console.error("GOOGLE_APPS_SCRIPT_API_URL is not configured.");
     return null;
   }
 
@@ -78,7 +87,7 @@ export async function fetchAssets() {
   const assetsApiUrl = getAssetsApiUrl();
 
   if (!assetsApiUrl) {
-    throw new Error("NEXT_PUBLIC_API_URL no está configurada.");
+    throw new Error("GOOGLE_APPS_SCRIPT_API_URL no está configurada.");
   }
 
   const response = await fetch(assetsApiUrl);

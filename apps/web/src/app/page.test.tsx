@@ -143,7 +143,7 @@ describe("DashboardPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("requests all Google Sheets endpoints using NEXT_PUBLIC_API_URL", async () => {
+  it("requests all Google Sheets endpoints through the protected internal proxy", async () => {
     render(<DashboardPage />);
 
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(6));
@@ -156,7 +156,7 @@ describe("DashboardPage", () => {
       "indicadores",
     ]) {
       expect(fetch).toHaveBeenCalledWith(
-        `https://example.test/api?accion=${accion}`,
+        `http://localhost:3000/api/google-sheets?accion=${accion}`,
       );
     }
   });

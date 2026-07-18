@@ -26,7 +26,7 @@ vi.mock("@/lib/assets/google-sheets", () => ({
 
 describe("FailureReportPage", () => {
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_API_URL = "https://example.test/api";
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:3000/api/google-sheets";
     mocks.fetchAssets.mockResolvedValue(assets);
     vi.stubGlobal("fetch", vi.fn());
   });
@@ -106,7 +106,7 @@ describe("FailureReportPage", () => {
       ),
     ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenLastCalledWith(
-      "https://example.test/api",
+      "http://localhost:3000/api/google-sheets",
       expect.objectContaining({ method: "POST" }),
     );
   });
