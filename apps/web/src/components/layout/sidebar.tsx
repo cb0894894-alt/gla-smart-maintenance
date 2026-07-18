@@ -4,7 +4,7 @@ import {
   Activity, Boxes, ClipboardList, Gauge, History, LogOut, Package, ShieldCheck, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { can, type Permission } from "@/lib/auth/permissions";
+import type { Permission } from "@/lib/auth/permissions";
 import { useSession } from "@/lib/auth/client";
 
 const navigation: { label: string; icon: typeof Boxes; href: string; permission: Permission }[] = [
@@ -19,8 +19,8 @@ const navigation: { label: string; icon: typeof Boxes; href: string; permission:
 ];
 
 export function Sidebar() {
-  const { user, logout } = useSession();
-  const items = user ? navigation.filter((item) => can(user.role, item.permission)) : [];
+  const { user, permissions, loading, error, logout } = useSession();
+  const items = user ? navigation.filter((item) => permissions.includes(item.permission)) : [];
   return (
     <aside className="sticky top-0 z-20 flex border-white/10 bg-slate-950/90 backdrop-blur md:h-screen md:w-72 md:flex-col md:border-r">
       <div className="hidden items-center gap-3 border-b border-white/10 p-6 md:flex">
@@ -31,6 +31,10 @@ export function Sidebar() {
         <p className="font-semibold text-white">{user.name}</p><p className="truncate text-muted-foreground">{user.email}</p><p className="mt-2 inline-flex rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">{user.role}</p>
       </div> : null}
       <nav className="flex w-full gap-2 overflow-x-auto p-3 md:flex-col md:p-4">
+        {loading ? <p className="rounded-2xl border border-white/10 px-4 py-3 text-sm text-muted-foreground">Cargando sesión...</p> : null}
+        {!loading && error ? <p className="rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+        {!loading && !error && !user ? <p className="rounded-2xl border border-white/10 px-4 py-3 text-sm text-muted-foreground">Inicia sesión para ver el menú.</p> : null}
+        {!loading && !error && user && items.length === 0 ? <p className="rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">No hay módulos disponibles para el rol {user.role}.</p> : null}
         {items.map((item, index) => <a key={item.label} href={item.href} className={cn("flex min-w-fit items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-muted-foreground transition hover:bg-white/10 hover:text-white", index === 0 && "bg-primary/15 text-primary")}><item.icon className="h-5 w-5" />{item.label}</a>)}
       </nav>
       {user ? <button onClick={logout} className="m-4 hidden items-center gap-2 rounded-2xl border border-white/10 px-4 py-3 text-sm text-muted-foreground hover:bg-white/10 hover:text-white md:flex"><LogOut className="h-4 w-4" />Cerrar sesión</button> : null}

@@ -44,9 +44,18 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/indicadores": "indicadores:read",
 };
 
+function normalizeText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+}
+
 export function normalizeEmail(email: string) { return email.trim().toLowerCase(); }
-export function isRole(value: string): value is Role { return (ROLES as readonly string[]).includes(value); }
-export function getPermissions(role: string): Permission[] { return isRole(role) ? ROLE_PERMISSIONS[role] : []; }
+export function normalizeRole(value: string): Role | null {
+  const normalized = normalizeText(value);
+  return ROLES.find((role) => normalizeText(role) === normalized) ?? null;
+}
+export function normalizeStatus(value: string) { return normalizeText(value) === "activo" ? "Activo" : value.trim(); }
+export function isRole(value: string): value is Role { return normalizeRole(value) !== null; }
+export function getPermissions(role: string): Permission[] { const normalized = normalizeRole(role); return normalized ? ROLE_PERMISSIONS[normalized] : []; }
 export function can(role: string, permission: Permission) { return getPermissions(role).includes(permission); }
 export function canAccessPath(role: string, pathname: string) {
   const entry = Object.entries(ROUTE_PERMISSIONS)
@@ -54,4 +63,4 @@ export function canAccessPath(role: string, pathname: string) {
     .find(([path]) => pathname === path || (path !== "/" && pathname.startsWith(`${path}/`)));
   return entry ? can(role, entry[1]) : true;
 }
-export function isReadOnlyRole(role: string) { return role === "Consulta"; }
+export function isReadOnlyRole(role: string) { return normalizeRole(role) === "Consulta"; }

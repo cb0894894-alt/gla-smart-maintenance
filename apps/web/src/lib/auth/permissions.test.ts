@@ -19,6 +19,10 @@ describe("role authorization", () => {
   it("normalizes email before matching CFG_Usuarios", () => {
     expect(normalizeEmail("  Usuario@Example.COM ")).toBe("usuario@example.com");
   });
+  it("normalizes role accents, case and whitespace before resolving permissions", () => {
+    expect(getPermissions(" administrador ")).toContain("usuarios:write");
+    expect(getPermissions("tecnico")).toContain("ordenes:write");
+  });
 });
 
 describe("CFG_Usuarios authorization", () => {
