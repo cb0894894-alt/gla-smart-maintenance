@@ -2,7 +2,11 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { findActiveCfgUser } from "@/lib/auth/cfg-users";
 import { getDefaultPathForRole, normalizeEmail } from "@/lib/auth/permissions";
-import { createSessionToken, SESSION_COOKIE } from "@/lib/auth/token";
+import {
+  createSessionToken,
+  getSessionCookieOptions,
+  SESSION_COOKIE,
+} from "@/lib/auth/token";
 import { getAuthSecret } from "@/lib/auth/server";
 
 type GoogleTokenResponse = { id_token?: string; error?: string };
@@ -22,6 +26,12 @@ function decodeJwtPayload(token: string): GoogleIdTokenPayload {
     ).toString("utf8"),
   );
 }
+function logAuthCallbackFailure(reason: string) {
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(`[auth:callback] ${reason}`);
+  }
+}
+
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
@@ -30,15 +40,19 @@ export async function GET(request: NextRequest) {
   const expectedNonce = store.get("gla_oauth_nonce")?.value;
   store.delete("gla_oauth_state");
   store.delete("gla_oauth_nonce");
-  if (!code || !state || state !== expectedState)
+  if (!code || !state || state !== expectedState) {
+    logAuthCallbackFailure("oauth_state_mismatch_or_missing");
     return NextResponse.redirect(
       new URL("/login?error=oauth_state", request.url),
     );
+  }
   const clientId = process.env.GOOGLE_CLIENT_ID,
     clientSecret = process.env.GOOGLE_CLIENT_SECRET,
     redirectUri = process.env.GOOGLE_REDIRECT_URI;
-  if (!clientId || !clientSecret || !redirectUri)
+  if (!clientId || !clientSecret || !redirectUri) {
+    logAuthCallbackFailure("oauth_config_missing");
     return NextResponse.redirect(new URL("/login?error=config", request.url));
+  }
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -51,22 +65,28 @@ export async function GET(request: NextRequest) {
     }),
   });
   const tokenData = (await tokenResponse.json()) as GoogleTokenResponse;
-  if (!tokenResponse.ok || !tokenData.id_token)
+  if (!tokenResponse.ok || !tokenData.id_token) {
+    logAuthCallbackFailure("google_token_exchange_failed");
     return NextResponse.redirect(
       new URL("/login?error=google_token", request.url),
     );
+  }
   const profile = decodeJwtPayload(tokenData.id_token);
   if (
     !profile.email ||
     !profile.email_verified ||
     profile.nonce !== expectedNonce
-  )
+  ) {
+    logAuthCallbackFailure("google_profile_invalid_or_nonce_mismatch");
     return NextResponse.redirect(
       new URL("/login?error=google_profile", request.url),
     );
+  }
   const cfgUser = await findActiveCfgUser(profile.email);
-  if (!cfgUser)
+  if (!cfgUser) {
+    logAuthCallbackFailure("cfg_user_not_active_or_not_found");
     return NextResponse.redirect(new URL("/acceso-denegado", request.url));
+  }
   const session = await createSessionToken(
     {
       user: {
@@ -83,12 +103,10 @@ export async function GET(request: NextRequest) {
   const response = NextResponse.redirect(
     new URL(getDefaultPathForRole(cfgUser.rol), request.url),
   );
-  response.cookies.set(SESSION_COOKIE, session, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 8 * 60 * 60,
-    path: "/",
-  });
+  response.cookies.set(
+    SESSION_COOKIE,
+    session,
+    getSessionCookieOptions(request.url),
+  );
   return response;
 }
