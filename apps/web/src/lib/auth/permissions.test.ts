@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   can,
   canAccessPath,
+  getDefaultPathForRole,
   getPermissions,
   normalizeEmail,
   normalizeRole,
@@ -51,6 +52,12 @@ describe("role authorization", () => {
       expect(canAccessPath(role, "/")).toBe(false);
     },
   );
+  it("returns the post-login route allowed for each role", () => {
+    expect(getDefaultPathForRole("Administrador")).toBe("/");
+    expect(getDefaultPathForRole("Supervisor")).toBe("/");
+    expect(getDefaultPathForRole("Técnico")).toBe("/activos");
+    expect(getDefaultPathForRole("Consulta")).toBe("/");
+  });
   it("denies invalid roles instead of allowing dashboard or data routes", () => {
     expect(normalizeRole("Gerente")).toBeNull();
     expect(getPermissions("Gerente")).toEqual([]);

@@ -11,9 +11,11 @@ const PUBLIC_PATHS = [
 ];
 
 function redirectToDenied(request: NextRequest) {
-  const response = NextResponse.redirect(
-    new URL("/acceso-denegado", request.url),
-  );
+  return NextResponse.redirect(new URL("/acceso-denegado", request.url));
+}
+
+function redirectToDeniedAndClearSession(request: NextRequest) {
+  const response = redirectToDenied(request);
   response.cookies.delete(SESSION_COOKIE);
   return response;
 }
@@ -40,7 +42,7 @@ export async function middleware(request: NextRequest) {
     );
 
   const cfgUser = await findActiveCfgUser(session.user.email).catch(() => null);
-  if (!cfgUser) return redirectToDenied(request);
+  if (!cfgUser) return redirectToDeniedAndClearSession(request);
   if (!canAccessPath(cfgUser.rol, pathname)) return redirectToDenied(request);
 
   return NextResponse.next();

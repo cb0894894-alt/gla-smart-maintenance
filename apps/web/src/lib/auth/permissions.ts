@@ -70,6 +70,13 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/indicadores": "indicadores:read",
 };
 
+export const DEFAULT_ROLE_PATHS: Record<Role, string> = {
+  Administrador: "/",
+  Supervisor: "/",
+  Técnico: "/activos",
+  Consulta: "/",
+};
+
 export function getPermissions(role: string): Permission[] {
   const normalized = normalizeRole(role);
   return normalized ? ROLE_PERMISSIONS[normalized] : [];
@@ -78,13 +85,20 @@ export function can(role: string, permission: Permission) {
   return getPermissions(role).includes(permission);
 }
 export function canAccessPath(role: string, pathname: string) {
+  const normalized = normalizeRole(role);
+  if (!normalized) return false;
+
   const entry = Object.entries(ROUTE_PERMISSIONS)
     .sort((a, b) => b[0].length - a[0].length)
     .find(
       ([path]) =>
         pathname === path || (path !== "/" && pathname.startsWith(`${path}/`)),
     );
-  return entry ? can(role, entry[1]) : true;
+  return entry ? can(normalized, entry[1]) : true;
+}
+export function getDefaultPathForRole(role: string) {
+  const normalized = normalizeRole(role);
+  return normalized ? DEFAULT_ROLE_PATHS[normalized] : "/acceso-denegado";
 }
 export function isReadOnlyRole(role: string) {
   return normalizeRole(role) === "Consulta";

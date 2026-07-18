@@ -18,7 +18,10 @@ const adminSession = {
 describe("Sidebar", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_TEST_SESSION = "fetch";
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => adminSession })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => adminSession })),
+    );
   });
 
   afterEach(() => {
@@ -41,22 +44,88 @@ describe("Sidebar", () => {
       "Historial",
       "Indicadores",
     ]) {
-      expect(await screen.findByRole("link", { name: new RegExp(label) })).toBeInTheDocument();
+      expect(
+        await screen.findByRole("link", { name: new RegExp(label) }),
+      ).toBeInTheDocument();
     }
 
     expect(screen.getByText("Ana Admin")).toBeInTheDocument();
     expect(screen.getByText("ana@gla.com")).toBeInTheDocument();
     expect(screen.getByText("Administrador")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Cerrar sesión/i })).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith("/api/auth/session", { cache: "no-store", credentials: "same-origin" });
+    expect(
+      screen.getByRole("button", { name: /Cerrar sesión/i }),
+    ).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith("/api/auth/session", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
   });
 
-  it("shows a clear session error instead of an empty menu", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({ error: "Sesión expirada" }) })));
+  it("shows the authorized Técnico modules only", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          user: {
+            name: "Tere Técnica",
+            email: "tere@gla.com",
+            role: "Técnico",
+            sucursal: "MZT",
+            area: "Mantto",
+          },
+          permissions: [
+            "activos:read",
+            "fallas:create",
+            "ordenes:read",
+            "ordenes:write",
+            "preventivos:read",
+            "preventivos:write",
+            "historial:read",
+          ],
+        }),
+      })),
+    );
 
     render(<Sidebar />);
 
-    await waitFor(() => expect(screen.getByText("Sesión expirada")).toBeInTheDocument());
+    for (const label of [
+      "Activos",
+      "Reportar falla",
+      "Órdenes de trabajo",
+      "Mantenimiento Preventivo",
+      "Historial",
+    ]) {
+      expect(
+        await screen.findByRole("link", { name: new RegExp(label) }),
+      ).toBeInTheDocument();
+    }
+
+    expect(
+      screen.queryByRole("link", { name: /Usuarios/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Indicadores/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Inventario/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a clear session error instead of an empty menu", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        json: async () => ({ error: "Sesión expirada" }),
+      })),
+    );
+
+    render(<Sidebar />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Sesión expirada")).toBeInTheDocument(),
+    );
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });
