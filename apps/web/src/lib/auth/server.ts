@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { findActiveCfgUser } from "./cfg-users";
 import { SESSION_COOKIE, verifySessionToken } from "./token";
+import type { Role } from "./roles";
 
 export function logAuthFailure(scope: string, reason: string) {
   if (process.env.NODE_ENV !== "production") {
@@ -53,4 +55,22 @@ export async function getServerSession() {
       area: cfgUser.area,
     },
   };
+}
+
+export async function requireSession() {
+  const session = await getServerSession();
+  if (!session) {
+    redirect("/acceso-denegado");
+  }
+
+  return session;
+}
+
+export async function requireRole(allowedRoles: readonly Role[]) {
+  const session = await requireSession();
+  if (!allowedRoles.includes(session.user.role)) {
+    redirect("/acceso-denegado");
+  }
+
+  return session;
 }

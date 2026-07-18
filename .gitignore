@@ -7,3 +7,7 @@ coverage
 !.env.example
 .DS_Store
 *.log
+
+# next-pwa generated assets
+apps/web/public/sw.js
+apps/web/public/workbox-*.js
