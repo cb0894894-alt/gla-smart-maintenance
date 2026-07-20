@@ -122,7 +122,7 @@ const USER_HEADERS = [
 const USER_ROLES = ["Administrador", "Supervisor", "Técnico", "Consulta"];
 const USER_STATUSES = ["Activo", "Inactivo"];
 const ASSET_HEADERS = [
-  "Código", "Nombre", "Tipo", "Sucursal", "Área", "Ubicación", "Marca",
+  "Código", "Nombre", "Tipo", "Sucursal", "Área", "Ubicación", "Marca", "Modelo",
   "Estado", "Criticidad", "FechaCreación", "FechaActualización"
 ];
 const ASSET_MOVEMENT_HEADERS = [
@@ -274,7 +274,7 @@ function createAsset_(payload) {
   const values = {
     id: payload.codigo, codigo: payload.codigo, nombre: payload.nombre, tipo: payload.tipo,
     sucursal: payload.sucursal, area: payload.area, ubicacion: payload.ubicacion,
-    marca: payload.marca || "", estado: payload.estado, criticidad: payload.criticidad,
+    marca: payload.marca || "", modelo: payload.modelo || "", estado: payload.estado, criticidad: payload.criticidad,
     fechacreacion: now, fechaactualizacion: now
   };
   sheet.appendRow(headers.map(function (header) {
@@ -303,7 +303,7 @@ function updateAsset_(payload) {
     previous.ubicacion !== payload.ubicacion || previous.estado !== payload.estado;
   if (hasTrackedChange && !payload.motivo) throw new Error("Captura el motivo del cambio.");
   [["Nombre", payload.nombre], ["Tipo", payload.tipo], ["Sucursal", payload.sucursal],
-   ["Área", payload.area], ["Ubicación", payload.ubicacion], ["Marca", payload.marca || ""],
+   ["Área", payload.area], ["Ubicación", payload.ubicacion], ["Marca", payload.marca || ""], ["Modelo", payload.modelo || ""],
    ["Estado", payload.estado], ["Criticidad", payload.criticidad], ["FechaActualización", new Date()]
   ].forEach(function (entry) { setAssetValue_(sheet, rowNumber, headers, entry[0], entry[1]); });
   if (hasTrackedChange) {

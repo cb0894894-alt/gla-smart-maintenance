@@ -15,7 +15,7 @@ import {
 const PAGE_SIZE = 25;
 const EMPTY_ASSET: AssetMutationInput = {
   codigo: "", nombre: "", tipo: "", sucursal: "", area: "", ubicacion: "",
-  marca: "", estado: "Operando", criticidad: "Media", motivo: "Alta inicial", responsable: "",
+  marca: "", modelo: "", estado: "Operando", criticidad: "Media", motivo: "Alta inicial", responsable: "",
 };
 
 function uniqueOptions(assets: Asset[], field: keyof Asset) {
@@ -124,10 +124,10 @@ export default function AssetsPage() {
           </div>
           <div className="mt-6 overflow-x-auto rounded-2xl border border-white/10">
             {isLoading ? <State title="Cargando activos" detail="Consultando Google Sheets..." /> : error ? <State title="Error al cargar" detail={error} error /> : filteredAssets.length === 0 ? <State title="Sin activos" detail="No hay registros para los filtros seleccionados." /> :
-              <table className="w-full min-w-[1200px] text-left text-sm"><thead className="bg-slate-950/80 text-muted-foreground"><tr>{["Código","Nombre","Tipo","Sucursal","Área","Ubicación","Marca","Estado","Criticidad","Acciones"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
+              <table className="w-full min-w-[1300px] text-left text-sm"><thead className="bg-slate-950/80 text-muted-foreground"><tr>{["Código","Nombre","Tipo","Sucursal","Área","Ubicación","Marca","Modelo","Estado","Criticidad","Acciones"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-white/10">{paginatedAssets.map((asset, index) => <tr key={`${asset.codigo}-${index}`} className="bg-slate-950/40 hover:bg-white/[0.06]">
                 <td className="px-4 py-3 font-semibold text-primary">{asset.codigo || "—"}</td><td className="px-4 py-3">{asset.nombre || "—"}</td><td className="px-4 py-3 text-muted-foreground">{asset.tipo || "—"}</td>
-                <td className="px-4 py-3">{asset.sucursal || "—"}</td><td className="px-4 py-3">{asset.area || "—"}</td><td className="px-4 py-3">{asset.ubicacion || "—"}</td><td className="px-4 py-3">{asset.marca || "—"}</td>
+                <td className="px-4 py-3">{asset.sucursal || "—"}</td><td className="px-4 py-3">{asset.area || "—"}</td><td className="px-4 py-3">{asset.ubicacion || "—"}</td><td className="px-4 py-3">{asset.marca || "—"}</td><td className="px-4 py-3">{asset.modelo || "—"}</td>
                 <td className="px-4 py-3"><Badge className={asset.estado === "Baja" ? "bg-red-500/20 text-red-200" : "bg-primary/15 text-primary"}>{asset.estado || "—"}</Badge></td><td className="px-4 py-3">{asset.criticidad || "—"}</td>
                 <td className="px-4 py-3"><div className="flex gap-2">{canWrite ? <IconButton title="Editar" onClick={() => openEdit(asset)} icon={<Pencil className="h-4 w-4" />} /> : null}<IconButton title="Historial" onClick={() => showHistory(asset)} icon={<History className="h-4 w-4" />} /></div></td>
               </tr>)}</tbody></table>}
@@ -147,7 +147,7 @@ function AssetEditor({ value, isNew, saving, error, onChange, onClose, onSubmit 
     <div className="mb-6 flex items-center justify-between"><div><h3 className="text-2xl font-bold">{isNew ? "Nueva maquinaria" : `Editar ${value.codigo}`}</h3><p className="text-sm text-muted-foreground">Los traslados y cambios de estado quedarán en el historial.</p></div><button type="button" onClick={onClose}><X /></button></div>
     <div className="grid gap-4 sm:grid-cols-2">
       <label className="text-sm">Código<input disabled className="field mt-1" value={isNew ? "Se genera automáticamente al guardar" : value.codigo} /></label>
-      {([['nombre','Nombre'],['tipo','Tipo'],['marca','Marca'],['sucursal','Sucursal'],['area','Área'],['ubicacion','Ubicación']] as [keyof AssetMutationInput,string][]).map(([field,label]) => <label key={field} className="text-sm">{label}<input className="field mt-1" value={value[field]} onChange={(e) => set(field,e.target.value)} /></label>)}
+      {([['nombre','Nombre'],['tipo','Tipo'],['marca','Marca'],['modelo','Modelo'],['sucursal','Sucursal'],['area','Área'],['ubicacion','Ubicación']] as [keyof AssetMutationInput,string][]).map(([field,label]) => <label key={field} className="text-sm">{label}<input className="field mt-1" value={value[field]} onChange={(e) => set(field,e.target.value)} /></label>)}
       <label className="text-sm">Estado<select className="field mt-1" value={value.estado} onChange={(e) => set('estado',e.target.value)}>{["Operando","Detenida","En mantenimiento","Fuera de servicio","Baja"].map(x => <option key={x}>{x}</option>)}</select></label>
       <label className="text-sm">Criticidad<select className="field mt-1" value={value.criticidad} onChange={(e) => set('criticidad',e.target.value)}>{["Baja","Media","Alta","Crítica"].map(x => <option key={x}>{x}</option>)}</select></label>
       {!isNew ? <label className="text-sm sm:col-span-2">Motivo del cambio<input className="field mt-1" placeholder="Traslado, baja, reactivación..." value={value.motivo} onChange={(e) => set('motivo',e.target.value)} /></label> : null}

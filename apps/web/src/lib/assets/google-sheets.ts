@@ -6,6 +6,7 @@ export type Asset = {
   area: string;
   ubicacion: string;
   marca: string;
+  modelo: string;
   estado: string;
   criticidad: string;
 };
@@ -36,6 +37,7 @@ const FIELD_ALIASES: Record<keyof Asset, string[]> = {
   nombre: ["nombre", "name", "activo", "equipo"],
   sucursal: ["sucursal", "branch", "planta"],
   ubicacion: ["ubicacion", "ubicación", "location"],
+  modelo: ["modelo", "model"],
   tipo: ["tipo", "type", "categoria", "categoría"],
   area: ["area", "área", "departamento", "sector"],
   marca: ["marca", "brand", "fabricante"],
@@ -109,6 +111,7 @@ export function parseAssetsResponse(data: unknown): Asset[] {
       area: readAssetField(asset, "area"),
       ubicacion: readAssetField(asset, "ubicacion"),
       marca: readAssetField(asset, "marca"),
+      modelo: readAssetField(asset, "modelo"),
       estado: readAssetField(asset, "estado"),
       criticidad: readAssetField(asset, "criticidad"),
     }));

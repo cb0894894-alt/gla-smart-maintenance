@@ -15,6 +15,7 @@ const asset: AssetMutationInput = {
   area: "Producción",
   ubicacion: "Línea 1",
   marca: "Atlas",
+  modelo: "GA-30",
   estado: "Operando",
   criticidad: "Alta",
   motivo: "Alta inicial",
@@ -28,9 +29,9 @@ describe("asset management", () => {
     expect(parseAssetsResponse([{
       Código: "ACT-001", Nombre: "Compresor", Tipo: "Equipo",
       Sucursal: "Centro", Área: "Producción", Ubicación: "Línea 1",
-      Marca: "Atlas", Estado: "Operando", Criticidad: "Alta",
+      Marca: "Atlas", Modelo: "GA-30", Estado: "Operando", Criticidad: "Alta",
     }])).toEqual([expect.objectContaining({
-      codigo: "ACT-001", sucursal: "Centro", area: "Producción", ubicacion: "Línea 1",
+      codigo: "ACT-001", sucursal: "Centro", area: "Producción", ubicacion: "Línea 1", modelo: "GA-30",
     })]);
   });
 
