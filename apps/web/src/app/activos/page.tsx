@@ -97,7 +97,7 @@ export default function AssetsPage() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(20,184,166,0.24),_transparent_32rem)] md:flex">
       <Sidebar />
-      <section className="flex-1 p-4 sm:p-6 lg:p-8">
+      <section className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8">
         <header className="mb-8 rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-cyan-950/30">
           <Badge className="mb-3 bg-primary/15 text-primary">Google Sheets</Badge>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -114,7 +114,7 @@ export default function AssetsPage() {
           <Indicator label="Otros estados" value={assets.length - operatingAssets} /><Indicator label="Criticidad alta" value={highCriticality} danger />
         </div>
 
-        <Card className="mt-6 bg-white/[0.04]"><CardHeader><CardTitle>Inventario de activos</CardTitle></CardHeader><CardContent>
+        <Card className="mt-6 min-w-0 max-w-full bg-white/[0.04]"><CardHeader><CardTitle>Inventario de activos</CardTitle></CardHeader><CardContent className="min-w-0">
           <div className="grid gap-3 lg:grid-cols-5">
             <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><input className="field pl-10" placeholder="Código o nombre" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
             <Filter label="Todas las sucursales" value={sucursal} options={uniqueOptions(assets, "sucursal")} onChange={setSucursal} />
@@ -122,7 +122,7 @@ export default function AssetsPage() {
             <Filter label="Todos los estados" value={estado} options={uniqueOptions(assets, "estado")} onChange={setEstado} />
             <Filter label="Toda criticidad" value={criticidad} options={uniqueOptions(assets, "criticidad")} onChange={setCriticidad} />
           </div>
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-white/10">
+          <div className="mt-6 max-w-full overflow-x-auto rounded-2xl border border-white/10">
             {isLoading ? <State title="Cargando activos" detail="Consultando Google Sheets..." /> : error ? <State title="Error al cargar" detail={error} error /> : filteredAssets.length === 0 ? <State title="Sin activos" detail="No hay registros para los filtros seleccionados." /> :
               <table className="w-full min-w-[1300px] text-left text-sm"><thead className="bg-slate-950/80 text-muted-foreground"><tr>{["Código","Nombre","Tipo","Sucursal","Área","Ubicación","Marca","Modelo","Estado","Criticidad","Acciones"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-white/10">{paginatedAssets.map((asset, index) => <tr key={`${asset.codigo}-${index}`} className="bg-slate-950/40 hover:bg-white/[0.06]">
