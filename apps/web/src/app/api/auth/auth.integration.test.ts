@@ -37,6 +37,8 @@ const cfgTecnico = {
   sucursal: "MZT",
   area: "Mantenimiento",
   estado: "Activo" as const,
+  fechaCreacion: "2026-07-01",
+  fechaActualizacion: "2026-07-01",
 };
 
 function googleIdToken(payload: Record<string, unknown>) {
@@ -94,14 +96,12 @@ describe("auth session integration", () => {
     );
   });
 
-  it("callback redirects to /activos with a local HttpOnly Lax session cookie", async () => {
+  it("callback redirects to Inicio with a local HttpOnly Lax session cookie", async () => {
     const response = await callbackResponse();
     const setCookie = response.headers.get("set-cookie") ?? "";
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/activos",
-    );
+    expect(response.headers.get("location")).toBe("http://localhost:3000/");
     expect(setCookie).toContain(`${SESSION_COOKIE}=`);
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("SameSite=lax");

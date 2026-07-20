@@ -36,7 +36,7 @@ describe("AccessDeniedPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders only the standalone denied screen and links Técnico to /activos", async () => {
+  it("renders only the standalone denied screen and links Técnico to Inicio", async () => {
     render(<AccessDeniedPage />);
 
     expect(
@@ -49,7 +49,7 @@ describe("AccessDeniedPage", () => {
     const safeLink = await screen.findByRole("link", {
       name: /Ir a mi inicio/i,
     });
-    await waitFor(() => expect(safeLink).toHaveAttribute("href", "/activos"));
+    await waitFor(() => expect(safeLink).toHaveAttribute("href", "/"));
     expect(
       screen.getByRole("button", { name: /Cerrar sesión/i }),
     ).toBeInTheDocument();

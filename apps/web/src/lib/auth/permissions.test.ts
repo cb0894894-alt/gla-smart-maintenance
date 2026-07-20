@@ -49,15 +49,21 @@ describe("role authorization", () => {
       expect(canAccessPath(role, "/inventario")).toBe(false);
       expect(canAccessPath(role, "/indicadores")).toBe(false);
       expect(canAccessPath(role, "/usuarios")).toBe(false);
-      expect(canAccessPath(role, "/")).toBe(false);
+      expect(canAccessPath(role, "/")).toBe(true);
     },
   );
   it("returns the post-login route allowed for each role", () => {
     expect(getDefaultPathForRole("Administrador")).toBe("/");
     expect(getDefaultPathForRole("Supervisor")).toBe("/");
-    expect(getDefaultPathForRole("Técnico")).toBe("/activos");
-    expect(getDefaultPathForRole("Consulta")).toBe("/activos");
+    expect(getDefaultPathForRole("Técnico")).toBe("/");
+    expect(getDefaultPathForRole("Consulta")).toBe("/");
   });
+  it.each(["Administrador", "Supervisor", "Técnico", "Consulta"])(
+    "allows %s to use the shared Inicio route",
+    (role) => {
+      expect(canAccessPath(role, "/")).toBe(true);
+    },
+  );
   it("denies invalid roles instead of allowing dashboard or data routes", () => {
     expect(normalizeRole("Gerente")).toBeNull();
     expect(getPermissions("Gerente")).toEqual([]);

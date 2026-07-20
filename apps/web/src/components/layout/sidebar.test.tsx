@@ -35,6 +35,7 @@ describe("Sidebar", () => {
     expect(screen.getByText("Cargando sesión...")).toBeInTheDocument();
 
     for (const label of [
+      "Inicio",
       "Activos",
       "Reportar falla",
       "Órdenes de trabajo",
@@ -90,6 +91,7 @@ describe("Sidebar", () => {
     render(<Sidebar />);
 
     for (const label of [
+      "Inicio",
       "Activos",
       "Reportar falla",
       "Órdenes de trabajo",
@@ -111,6 +113,66 @@ describe("Sidebar", () => {
       screen.queryByRole("link", { name: /Inventario/i }),
     ).not.toBeInTheDocument();
   });
+
+  it.each([
+    {
+      role: "Supervisor",
+      permissions: [
+        "activos:read",
+        "fallas:create",
+        "ordenes:read",
+        "preventivos:read",
+        "inventario:read",
+        "historial:read",
+        "indicadores:read",
+      ],
+      visible: ["Inicio", "Inventario", "Indicadores"],
+      hidden: ["Usuarios"],
+    },
+    {
+      role: "Consulta",
+      permissions: [
+        "activos:read",
+        "ordenes:read",
+        "preventivos:read",
+        "historial:read",
+      ],
+      visible: ["Inicio", "Activos", "Órdenes de trabajo", "Historial"],
+      hidden: ["Reportar falla", "Inventario", "Usuarios", "Indicadores"],
+    },
+  ])(
+    "shows Inicio and only the modules authorized for $role",
+    async ({ role, permissions, visible, hidden }) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({
+            user: {
+              name: `Usuario ${role}`,
+              email: `${role.toLowerCase()}@gla.com`,
+              role,
+              sucursal: "MZT",
+              area: "Mantenimiento",
+            },
+            permissions,
+          }),
+        ),
+      );
+
+      render(<Sidebar />);
+
+      for (const label of visible) {
+        expect(
+          await screen.findByRole("link", { name: new RegExp(label) }),
+        ).toBeInTheDocument();
+      }
+      for (const label of hidden) {
+        expect(
+          screen.queryByRole("link", { name: new RegExp(label) }),
+        ).not.toBeInTheDocument();
+      }
+    },
+  );
 
   it("shows a clear session error instead of an empty menu", async () => {
     vi.stubGlobal(

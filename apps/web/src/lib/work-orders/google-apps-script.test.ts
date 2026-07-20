@@ -59,9 +59,13 @@ describe("Google Apps Script work order closure consistency", () => {
   });
 
   it("returns closed orders with existing history without appending another row", () => {
-    expect(
+    const duplicateBranch = closeWorkOrderSource.slice(
       closeWorkOrderSource.indexOf("if (duplicateIndex !== -1)"),
-    ).toBeLessThan(closeWorkOrderSource.indexOf("return {\n        ok: true"));
+      closeWorkOrderSource.indexOf("validateCloseHistoryPayload_(payload)"),
+    );
+    expect(duplicateBranch).toContain("return {");
+    expect(duplicateBranch).toContain("ok: true");
+    expect(duplicateBranch).toContain("duplicateHistory: true");
     expect(closeWorkOrderSource.indexOf("duplicateHistory: true")).toBeLessThan(
       closeWorkOrderSource.indexOf("historySheet.appendRow(historyRow)"),
     );

@@ -6,6 +6,8 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useSession } from "@/lib/auth/client";
+import type { Permission } from "@/lib/auth/permissions";
 import { fetchAssets, type Asset } from "@/lib/assets/google-sheets";
 import {
   getAssetDashboardMetrics,
@@ -64,6 +66,7 @@ const emptyData: DashboardData = {
   indicadores: [],
 };
 export default function DashboardPage() {
+  const { user, permissions, loading: sessionLoading } = useSession();
   const [data, setData] = useState<DashboardData>(emptyData);
   const [errors, setErrors] = useState<Partial<Record<ResourceKey, string>>>(
     {},
@@ -72,27 +75,46 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const loadDashboard = useCallback(async () => {
+    if (sessionLoading || !user) return;
     setLoading(true);
-    const results = await Promise.allSettled([
-      fetchAssets(),
-      fetchWorkOrders(),
-      fetchPreventivePlans(),
-      fetchInventory(),
-      fetchMaintenanceHistory(),
-      fetchIndicators(),
-    ] as const);
-    const keys: ResourceKey[] = [
-      "activos",
-      "ordenes",
-      "preventivos",
-      "inventario",
-      "historial",
-      "indicadores",
+    const resources: {
+      key: ResourceKey;
+      permission: Permission;
+      load: () => Promise<unknown[]>;
+    }[] = [
+      { key: "activos", permission: "activos:read", load: fetchAssets },
+      { key: "ordenes", permission: "ordenes:read", load: fetchWorkOrders },
+      {
+        key: "preventivos",
+        permission: "preventivos:read",
+        load: fetchPreventivePlans,
+      },
+      {
+        key: "inventario",
+        permission: "inventario:read",
+        load: fetchInventory,
+      },
+      {
+        key: "historial",
+        permission: "historial:read",
+        load: fetchMaintenanceHistory,
+      },
+      {
+        key: "indicadores",
+        permission: "indicadores:read",
+        load: fetchIndicators,
+      },
     ];
+    const allowedResources = resources.filter((resource) =>
+      permissions.includes(resource.permission),
+    );
+    const results = await Promise.allSettled(
+      allowedResources.map((resource) => resource.load()),
+    );
     const nextData = { ...emptyData };
     const nextErrors: Partial<Record<ResourceKey, string>> = {};
     results.forEach((result, index) => {
-      const key = keys[index];
+      const key = allowedResources[index].key;
       if (result.status === "fulfilled") nextData[key] = result.value as never;
       else
         nextErrors[key] =
@@ -104,11 +126,11 @@ export default function DashboardPage() {
     setErrors(nextErrors);
     setLastUpdated(new Date());
     setLoading(false);
-  }, []);
+  }, [permissions, sessionLoading, user]);
 
   useEffect(() => {
-    void loadDashboard();
-  }, [loadDashboard]);
+    if (!sessionLoading && user) void loadDashboard();
+  }, [loadDashboard, sessionLoading, user]);
 
   const metrics = useMemo(() => {
     const preventive = getPreventiveDashboardMetrics(data.preventivos);
@@ -139,6 +161,7 @@ export default function DashboardPage() {
     [data.historial],
   );
   const hasErrors = Object.keys(errors).length > 0;
+  const canSee = (permission: Permission) => permissions.includes(permission);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(20,184,166,0.24),_transparent_32rem)] md:flex">
@@ -150,11 +173,11 @@ export default function DashboardPage() {
               Datos reales desde Google Sheets
             </Badge>
             <h2 className="text-3xl font-black tracking-tight sm:text-5xl">
-              Centro de mantenimiento inteligente
+              Bienvenido{user?.name ? `, ${user.name}` : ""}
             </h2>
             <p className="mt-3 max-w-2xl text-muted-foreground">
-              Dashboard operativo conectado a Activos, OT, Preventivos,
-              Inventario, Historial e Indicadores.
+              Este es tu inicio de GLA Smart Maintenance. Aquí encontrarás los
+              módulos y datos disponibles para tu rol {user?.role ?? ""}.
             </p>
             <p className="mt-3 text-sm text-muted-foreground">
               Última actualización:{" "}
@@ -185,115 +208,135 @@ export default function DashboardPage() {
             </button>
           </div>
         ) : null}
-        {loading ? (
+        {loading || sessionLoading ? (
           <p className="mb-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-muted-foreground">
             Cargando información real de Google Sheets...
           </p>
         ) : null}
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <MetricCard
-            href="/activos"
-            title="Activos"
-            value={metrics.assets.total}
-            detail={`${metrics.assets.operando} activos operando`}
-            empty={!loading && !data.activos.length}
-          />
-          <MetricCard
-            href="/ordenes-trabajo"
-            title="Órdenes de trabajo"
-            value={metrics.workOrders.abiertas}
-            detail={`${metrics.workOrders.urgentes} urgentes · ${metrics.workOrders.vencidas} vencidas`}
-            empty={!loading && !data.ordenes.length}
-          />
-          <MetricCard
-            href="/mantenimiento-preventivo"
-            title="Mantenimiento preventivo"
-            value={`${metrics.preventive.cumplimiento}%`}
-            detail={`${metrics.preventive.proximos} próximos · ${metrics.preventive.vencidos} vencidos`}
-            empty={
-              !loading && !data.preventivos.length && !data.indicadores.length
-            }
-          />
-          <MetricCard
-            href="/inventario"
-            title="Inventario"
-            value={metrics.inventory.total}
-            detail={`${metrics.inventory.bajas} existencias bajas · ${metrics.inventory.agotadas} agotadas`}
-            empty={!loading && !data.inventario.length}
-          />
-          <MetricCard
-            href="/historial"
-            title="Historial"
-            value={metrics.history.servicios}
-            detail={`${metrics.history.horasParo} h paro · ${formatCurrency(metrics.history.costo)}`}
-            empty={!loading && !data.historial.length}
-          />
-          <MetricCard
-            href="/indicadores"
-            title="Indicadores"
-            value={`${metrics.indicators.disponibilidad}%`}
-            detail={`MTBF ${metrics.indicators.mtbf} h · MTTR ${metrics.indicators.mttr} h${metrics.indicators.periodo ? ` · ${metrics.indicators.periodo}` : ""}`}
-            empty={!loading && !data.indicadores.length}
-          />
+          {canSee("activos:read") ? (
+            <MetricCard
+              href="/activos"
+              title="Activos"
+              value={metrics.assets.total}
+              detail={`${metrics.assets.operando} activos operando`}
+              empty={!loading && !data.activos.length}
+            />
+          ) : null}
+          {canSee("ordenes:read") ? (
+            <MetricCard
+              href="/ordenes-trabajo"
+              title="Órdenes de trabajo"
+              value={metrics.workOrders.abiertas}
+              detail={`${metrics.workOrders.urgentes} urgentes · ${metrics.workOrders.vencidas} vencidas`}
+              empty={!loading && !data.ordenes.length}
+            />
+          ) : null}
+          {canSee("preventivos:read") ? (
+            <MetricCard
+              href="/mantenimiento-preventivo"
+              title="Mantenimiento preventivo"
+              value={`${metrics.preventive.cumplimiento}%`}
+              detail={`${metrics.preventive.proximos} próximos · ${metrics.preventive.vencidos} vencidos`}
+              empty={
+                !loading && !data.preventivos.length && !data.indicadores.length
+              }
+            />
+          ) : null}
+          {canSee("inventario:read") ? (
+            <MetricCard
+              href="/inventario"
+              title="Inventario"
+              value={metrics.inventory.total}
+              detail={`${metrics.inventory.bajas} existencias bajas · ${metrics.inventory.agotadas} agotadas`}
+              empty={!loading && !data.inventario.length}
+            />
+          ) : null}
+          {canSee("historial:read") ? (
+            <MetricCard
+              href="/historial"
+              title="Historial"
+              value={metrics.history.servicios}
+              detail={`${metrics.history.horasParo} h paro · ${formatCurrency(metrics.history.costo)}`}
+              empty={!loading && !data.historial.length}
+            />
+          ) : null}
+          {canSee("indicadores:read") ? (
+            <MetricCard
+              href="/indicadores"
+              title="Indicadores"
+              value={`${metrics.indicators.disponibilidad}%`}
+              detail={`MTBF ${metrics.indicators.mtbf} h · MTTR ${metrics.indicators.mttr} h${metrics.indicators.periodo ? ` · ${metrics.indicators.periodo}` : ""}`}
+              empty={!loading && !data.indicadores.length}
+            />
+          ) : null}
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-2">
-          <ListCard
-            title="Órdenes prioritarias"
-            href="/ordenes-trabajo"
-            empty={!priorityWorkOrders.length}
-            emptyMessage="No hay órdenes prioritarias"
-          >
-            {priorityWorkOrders.map((o) => (
-              <Row
-                key={o.folio}
-                main={`${o.folio} · ${o.activo}`}
-                meta={`${o.prioridad} · ${o.estado} · ${formatDate(o.fechaHoraReporte)}`}
-              />
-            ))}
-          </ListCard>
-          <ListCard
-            title="Inventario crítico"
-            href="/inventario"
-            empty={!data.inventario.length}
-            icon={<AlertTriangle className="h-5 w-5 text-amber-300" />}
-          >
-            {getCriticalInventory(data.inventario).map((i) => (
-              <Row
-                key={i.codigo}
-                main={`${i.codigo} · ${i.refaccion}`}
-                meta={`${i.existencia}/${i.stockMinimo} ${i.unidad} · ${i.ubicacion}`}
-              />
-            ))}
-          </ListCard>
-          <ListCard
-            title="Próximos mantenimientos preventivos"
-            href="/mantenimiento-preventivo"
-            empty={!upcomingPreventivePlans.length}
-            emptyMessage="No hay mantenimientos próximos"
-          >
-            {upcomingPreventivePlans.map((p) => (
-              <Row
-                key={p.idPM}
-                main={`${p.idPM} · ${p.activo}`}
-                meta={`${formatDate(p.proximaEjecucion)} · ${p.tarea} · ${p.responsable}`}
-              />
-            ))}
-          </ListCard>
-          <ListCard
-            title="Actividad reciente"
-            href="/historial"
-            empty={!data.historial.length}
-          >
-            {recentMaintenanceActivity.map((h) => (
-              <Row
-                key={h.idHistorial || h.folioOT}
-                main={`${h.folioOT} · ${h.activo}`}
-                meta={`${formatDate(h.fechaCierre)} · ${h.tipoMantenimiento} · ${formatCurrency(h.costoTotal)}`}
-              />
-            ))}
-          </ListCard>
+          {canSee("ordenes:read") ? (
+            <ListCard
+              title="Órdenes prioritarias"
+              href="/ordenes-trabajo"
+              empty={!priorityWorkOrders.length}
+              emptyMessage="No hay órdenes prioritarias"
+            >
+              {priorityWorkOrders.map((o) => (
+                <Row
+                  key={o.folio}
+                  main={`${o.folio} · ${o.activo}`}
+                  meta={`${o.prioridad} · ${o.estado} · ${formatDate(o.fechaHoraReporte)}`}
+                />
+              ))}
+            </ListCard>
+          ) : null}
+          {canSee("inventario:read") ? (
+            <ListCard
+              title="Inventario crítico"
+              href="/inventario"
+              empty={!data.inventario.length}
+              icon={<AlertTriangle className="h-5 w-5 text-amber-300" />}
+            >
+              {getCriticalInventory(data.inventario).map((i) => (
+                <Row
+                  key={i.codigo}
+                  main={`${i.codigo} · ${i.refaccion}`}
+                  meta={`${i.existencia}/${i.stockMinimo} ${i.unidad} · ${i.ubicacion}`}
+                />
+              ))}
+            </ListCard>
+          ) : null}
+          {canSee("preventivos:read") ? (
+            <ListCard
+              title="Próximos mantenimientos preventivos"
+              href="/mantenimiento-preventivo"
+              empty={!upcomingPreventivePlans.length}
+              emptyMessage="No hay mantenimientos próximos"
+            >
+              {upcomingPreventivePlans.map((p) => (
+                <Row
+                  key={p.idPM}
+                  main={`${p.idPM} · ${p.activo}`}
+                  meta={`${formatDate(p.proximaEjecucion)} · ${p.tarea} · ${p.responsable}`}
+                />
+              ))}
+            </ListCard>
+          ) : null}
+          {canSee("historial:read") ? (
+            <ListCard
+              title="Actividad reciente"
+              href="/historial"
+              empty={!data.historial.length}
+            >
+              {recentMaintenanceActivity.map((h) => (
+                <Row
+                  key={h.idHistorial || h.folioOT}
+                  main={`${h.folioOT} · ${h.activo}`}
+                  meta={`${formatDate(h.fechaCierre)} · ${h.tipoMantenimiento} · ${formatCurrency(h.costoTotal)}`}
+                />
+              ))}
+            </ListCard>
+          ) : null}
         </div>
       </section>
     </main>

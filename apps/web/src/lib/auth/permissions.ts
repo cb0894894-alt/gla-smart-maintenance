@@ -58,7 +58,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 };
 
 export const ROUTE_ACCESS: Record<string, Role[]> = {
-  "/": ["Administrador", "Supervisor"],
+  "/": ["Administrador", "Supervisor", "Técnico", "Consulta"],
   "/usuarios": ["Administrador"],
   "/indicadores": ["Administrador", "Supervisor"],
   "/inventario": ["Administrador", "Supervisor"],
@@ -102,8 +102,8 @@ export const API_ACTION_PERMISSIONS: Record<string, Permission> = {
 export const DEFAULT_ROLE_PATHS: Record<Role, string> = {
   Administrador: "/",
   Supervisor: "/",
-  Técnico: "/activos",
-  Consulta: "/activos",
+  Técnico: "/",
+  Consulta: "/",
 };
 
 export function getPermissions(role: string): Permission[] {

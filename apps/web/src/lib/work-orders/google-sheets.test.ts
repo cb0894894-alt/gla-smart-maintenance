@@ -47,7 +47,7 @@ const orders: WorkOrder[] = [
 
 afterEach(() => {
   vi.restoreAllMocks();
-  delete "http://localhost:3000/api/google-sheets";
+  delete process.env.NEXT_PUBLIC_API_URL;
 });
 
 describe("work orders Google Sheets helpers", () => {

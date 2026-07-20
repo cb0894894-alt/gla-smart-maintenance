@@ -106,9 +106,12 @@ describe("DashboardPage", () => {
 
   it("shows clear empty messages for priority orders and upcoming maintenance", async () => {
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockImplementation(async (input: string) => {
-      const accion = new URL(input).searchParams.get("accion") || "";
-      const emptyResponses = {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const accion =
+        new URL(
+          input instanceof Request ? input.url : input.toString(),
+        ).searchParams.get("accion") || "";
+      const emptyResponses: Record<string, unknown[]> = {
         ...responses,
         ordenesTrabajo: [
           {
@@ -130,7 +133,7 @@ describe("DashboardPage", () => {
           },
         ],
       };
-      return { ok: true, json: async () => emptyResponses[accion] ?? [] };
+      return Response.json(emptyResponses[accion] ?? []);
     });
 
     render(<DashboardPage />);

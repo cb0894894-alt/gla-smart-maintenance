@@ -18,6 +18,8 @@ async function requestFor(pathname: string, role: Role) {
     sucursal: "MZT",
     area: "Mantenimiento",
     estado: "Activo",
+    fechaCreacion: "2026-07-01",
+    fechaActualizacion: "2026-07-01",
   });
   const token = await createSessionToken(
     {
