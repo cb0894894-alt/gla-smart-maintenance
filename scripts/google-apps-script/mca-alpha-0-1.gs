@@ -269,7 +269,7 @@ function createAsset_(payload) {
   try {
   const sheet = getSheet_(SHEET_ACTIVOS);
   const headers = ensureAssetHeaders_(sheet);
-  payload.codigo = nextAssetCode_(sheet, headers, payload.sucursal);
+  payload.codigo = nextAssetCode_(sheet, headers, payload.sucursal, payload.tipo);
   const now = new Date();
   const values = {
     id: payload.codigo, codigo: payload.codigo, nombre: payload.nombre, tipo: payload.tipo,
@@ -312,11 +312,18 @@ function updateAsset_(payload) {
   return { ok: true, codigo: payload.codigo };
 }
 
-function nextAssetCode_(sheet, headers, sucursal) {
+function nextAssetCode_(sheet, headers, sucursal, tipo) {
   const branch = String(sucursal || "GEN").normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]/g, "")
     .toUpperCase().slice(0, 6) || "GEN";
-  const prefix = "EQ-" + branch + "-";
+  const typeWords = String(tipo || "").normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").toUpperCase()
+    .split(/[^A-Z0-9]+/).filter(Boolean);
+  const significantWord = typeWords.find(function (word) {
+    return ["MAQUINA", "MAQUINARIA", "EQUIPO", "ACTIVO", "DE", "DEL"].indexOf(word) === -1;
+  }) || typeWords[0] || "EQ";
+  const typeCode = significantWord.slice(0, 2);
+  const prefix = "EQ-" + branch + "-" + typeCode;
   const codeIndex = headers.map(normalizeAssetHeader_).indexOf("codigo");
   let highest = 0;
   if (sheet.getLastRow() >= 2 && codeIndex >= 0) {
@@ -326,7 +333,7 @@ function nextAssetCode_(sheet, headers, sucursal) {
       if (match) highest = Math.max(highest, Number(match[1]));
     });
   }
-  return prefix + String(highest + 1).padStart(4, "0");
+  return prefix + String(highest + 1).padStart(3, "0");
 }
 
 function appendAssetMovement_(codigo, date, previous, current) {

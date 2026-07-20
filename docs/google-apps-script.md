@@ -6,6 +6,7 @@ Esta versión conecta el módulo real de **Órdenes de Trabajo** con las hojas `
 
 - `GET ?accion=activos`: devuelve los activos reales de la hoja `ACT_Activos`.
 - `POST { accion: "crearActivo", ... }`: registra una maquinaria con sucursal, área y ubicación.
+- El código se genera como `EQ-SUCURSAL-TI###`; por ejemplo, `EQ-MCA-AL005`.
 - `POST { accion: "actualizarActivo", ... }`: actualiza sus datos y registra cambios de ubicación o estado.
 - `GET ?accion=movimientosActivos&codigoActivo=...`: consulta la trazabilidad en `ACT_Movimientos`.
 - `GET ?accion=ordenesTrabajo`: devuelve las filas reales de `OT_OrdenesTrabajo` como objetos JSON.
