@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Boxes, ChevronDown, ChevronRight, History, Pencil, Plus, Search, Wrench, X } from "lucide-react";
+import { AlertCircle, Boxes, ChevronDown, ChevronRight, History, Link2, Pencil, Plus, Search, Wrench, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import {
   createAsset, fetchAssetMovements, fetchAssets, matchesAssetSearch, updateAsset, validateAsset,
   type Asset, type AssetMovement, type AssetMutationInput,
 } from "@/lib/assets/google-sheets";
-import { createComponent, fetchComponents, validateComponent, type AssetComponent, type ComponentInput } from "@/lib/assets/components";
+import { convertAssetToComponent, createComponent, fetchComponents, validateComponent, type AssetComponent, type ComponentInput } from "@/lib/assets/components";
 
 const PAGE_SIZE = 25;
 const EMPTY_ASSET: AssetMutationInput = {
@@ -43,6 +43,8 @@ export default function AssetsPage() {
   const [components, setComponents] = useState<AssetComponent[]>([]);
   const [expandedAsset, setExpandedAsset] = useState<string | null>(null);
   const [componentParent, setComponentParent] = useState<Asset | null>(null);
+  const [migratingAsset, setMigratingAsset] = useState<Asset | null>(null);
+  const [showIntegrated, setShowIntegrated] = useState(false);
   const canWrite = user?.role === "Administrador" && permissions.includes("activos:write");
 
   async function reloadAssets() {
@@ -64,9 +66,10 @@ export default function AssetsPage() {
   const filteredAssets = useMemo(() => {
     return assets.filter((asset) =>
       matchesAssetSearch(asset, search) &&
+      (showIntegrated || asset.estado !== "Integrado como componente") &&
       (!sucursal || asset.sucursal === sucursal) && (!area || asset.area === area) &&
       (!estado || asset.estado === estado) && (!criticidad || asset.criticidad === criticidad));
-  }, [area, assets, criticidad, estado, search, sucursal]);
+  }, [area, assets, criticidad, estado, search, showIntegrated, sucursal]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAssets.length / PAGE_SIZE));
   const paginatedAssets = filteredAssets.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -131,6 +134,7 @@ export default function AssetsPage() {
             <Filter label="Todos los estados" value={estado} options={uniqueOptions(assets, "estado")} onChange={setEstado} />
             <Filter label="Toda criticidad" value={criticidad} options={uniqueOptions(assets, "criticidad")} onChange={setCriticidad} />
           </div>
+          <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={showIntegrated} onChange={(event) => setShowIntegrated(event.target.checked)} className="h-4 w-4 accent-teal-400" />Mostrar activos ya integrados como componentes</label>
           <div className="mt-6 max-w-full overflow-x-auto rounded-2xl border border-white/10">
             {isLoading ? <State title="Cargando activos" detail="Consultando Google Sheets..." /> : error ? <State title="Error al cargar" detail={error} error /> : filteredAssets.length === 0 ? <State title="Sin activos" detail="No hay registros para los filtros seleccionados." /> :
               <table className="w-full min-w-[1300px] text-left text-sm"><thead className="bg-slate-950/80 text-muted-foreground"><tr>{["Código","Nombre","Tipo","Sucursal","Área","Ubicación","Marca","Modelo","Estado","Criticidad","Acciones"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
@@ -138,7 +142,7 @@ export default function AssetsPage() {
                 <td className="px-4 py-3 font-semibold text-primary"><button className="flex items-center gap-2" onClick={() => setExpandedAsset(expanded ? null : asset.codigo)}>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{asset.codigo || "—"}<span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-muted-foreground">{children.length}</span></button></td><td className="px-4 py-3">{asset.nombre || "—"}</td><td className="px-4 py-3 text-muted-foreground">{asset.tipo || "—"}</td>
                 <td className="px-4 py-3">{asset.sucursal || "—"}</td><td className="px-4 py-3">{asset.area || "—"}</td><td className="px-4 py-3">{asset.ubicacion || "—"}</td><td className="px-4 py-3">{asset.marca || "—"}</td><td className="px-4 py-3">{asset.modelo || "—"}</td>
                 <td className="px-4 py-3"><Badge className={asset.estado === "Baja" ? "bg-red-500/20 text-red-200" : "bg-primary/15 text-primary"}>{asset.estado || "—"}</Badge></td><td className="px-4 py-3">{asset.criticidad || "—"}</td>
-                <td className="px-4 py-3"><div className="flex gap-2">{canWrite ? <IconButton title="Agregar componente" onClick={() => setComponentParent(asset)} icon={<Wrench className="h-4 w-4" />} /> : null}{canWrite ? <IconButton title="Editar" onClick={() => openEdit(asset)} icon={<Pencil className="h-4 w-4" />} /> : null}<IconButton title="Historial" onClick={() => showHistory(asset)} icon={<History className="h-4 w-4" />} /></div></td>
+                <td className="px-4 py-3"><div className="flex gap-2">{canWrite ? <IconButton title="Agregar componente" onClick={() => setComponentParent(asset)} icon={<Wrench className="h-4 w-4" />} /> : null}{canWrite && asset.estado !== "Integrado como componente" ? <IconButton title="Integrar dentro de otro equipo" onClick={() => setMigratingAsset(asset)} icon={<Link2 className="h-4 w-4" />} /> : null}{canWrite ? <IconButton title="Editar" onClick={() => openEdit(asset)} icon={<Pencil className="h-4 w-4" />} /> : null}<IconButton title="Historial" onClick={() => showHistory(asset)} icon={<History className="h-4 w-4" />} /></div></td>
               </tr>{expanded ? <tr className="bg-cyan-950/20"><td colSpan={11} className="p-4"><ComponentList components={children} onAdd={canWrite ? () => setComponentParent(asset) : undefined} /></td></tr> : null}</Fragment>})}</tbody></table>}
           </div>
           <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground"><span>Mostrando {paginatedAssets.length} de {filteredAssets.length}</span><div className="flex gap-2"><button disabled={page === 1} onClick={() => setPage(page - 1)} className="nav-button">Anterior</button><span className="px-3 py-2">Página {page} de {totalPages}</span><button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="nav-button">Siguiente</button></div></div>
@@ -146,6 +150,7 @@ export default function AssetsPage() {
         {editing ? <AssetEditor value={editing} isNew={isNew} saving={saving} error={formError} onChange={setEditing} onClose={() => setEditing(null)} onSubmit={saveAsset} /> : null}
         {movementAsset ? <MovementHistory asset={movementAsset} movements={movements} onClose={() => setMovementAsset(null)} /> : null}
         {componentParent ? <ComponentEditor asset={componentParent} onClose={() => setComponentParent(null)} onSaved={componentCreated} /> : null}
+        {migratingAsset ? <MigrationEditor source={migratingAsset} assets={assets} userIdentity={user?.email || user?.name || ""} onClose={() => setMigratingAsset(null)} onSaved={async () => { await Promise.all([reloadAssets(), fetchComponents().then(setComponents)]); setMigratingAsset(null); }} /> : null}
       </section>
     </main>
   );
@@ -191,6 +196,29 @@ function ComponentEditor({ asset, onClose, onSaved }: { asset: Asset; onClose: (
     finally { setSaving(false); }
   }
   return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 p-4 backdrop-blur"><form onSubmit={submit} className="mx-auto mt-8 max-w-3xl rounded-3xl border border-white/10 bg-slate-900 p-6"><div className="flex items-start justify-between"><div><h3 className="text-2xl font-bold">Nuevo componente</h3><p className="text-sm text-muted-foreground">Equipo principal: {asset.nombre} · {asset.codigo}</p></div><button type="button" onClick={onClose}><X /></button></div><div className="mt-6 grid gap-4 sm:grid-cols-2">{([['nombre','Nombre'],['tipo','Tipo'],['marca','Marca'],['modelo','Modelo'],['numeroSerie','Número de serie'],['ubicacion','Ubicación dentro del equipo'],['fechaInstalacion','Fecha de instalación']] as [keyof ComponentInput,string][]).map(([field,label]) => <label key={field} className="text-sm">{label}<input type={field === 'fechaInstalacion' ? 'date' : 'text'} className="field mt-1" value={value[field]} onChange={(event) => set(field,event.target.value)} /></label>)}<label className="text-sm">Estado<select className="field mt-1" value={value.estado} onChange={(event) => set('estado',event.target.value)}>{["Operando","Detenido","En mantenimiento","Fuera de servicio","Baja"].map((option) => <option key={option}>{option}</option>)}</select></label></div>{error ? <p className="mt-4 rounded-xl bg-red-500/15 p-3 text-red-200">{error}</p> : null}<div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="nav-button">Cancelar</button><button disabled={saving} className="rounded-xl bg-primary px-5 py-2 font-semibold text-primary-foreground disabled:opacity-50">{saving ? "Guardando..." : "Guardar componente"}</button></div></form></div>;
+}
+
+function MigrationEditor({ source, assets, userIdentity, onClose, onSaved }: { source: Asset; assets: Asset[]; userIdentity: string; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [parentCode, setParentCode] = useState("");
+  const [parentSearch, setParentSearch] = useState("");
+  const [location, setLocation] = useState(source.ubicacion || "Dentro del equipo");
+  const [reason, setReason] = useState("Reorganización como componente del equipo principal");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const candidates = assets.filter((asset) => asset.codigo !== source.codigo && asset.estado !== "Integrado como componente").sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const matchingCandidates = parentCode ? [] : candidates.filter((asset) => matchesAssetSearch(asset, parentSearch)).slice(0, 8);
+  const selectedParent = candidates.find((asset) => asset.codigo === parentCode);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!parentCode) return setError("Selecciona el equipo principal.");
+    if (!location.trim()) return setError("Captura la ubicación dentro del equipo.");
+    if (!reason.trim()) return setError("Captura el motivo.");
+    setSaving(true); setError(null);
+    try { await convertAssetToComponent({ codigoOrigen: source.codigo, codigoActivoPadre: parentCode, ubicacion: location, motivo: reason, responsable: userIdentity }); await onSaved(); }
+    catch (saveError) { setError(saveError instanceof Error ? saveError.message : "No se pudo completar la migración."); }
+    finally { setSaving(false); }
+  }
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 p-4 backdrop-blur"><form onSubmit={submit} className="mx-auto mt-8 max-w-2xl rounded-3xl border border-white/10 bg-slate-900 p-6"><div className="flex items-start justify-between"><div><h3 className="text-2xl font-bold">Integrar como componente</h3><p className="text-sm text-muted-foreground">{source.nombre} · {source.codigo}</p></div><button type="button" onClick={onClose}><X /></button></div><div className="mt-5 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">El registro original no se eliminará. Quedará oculto de la lista principal y conservará sus órdenes e historial.</div><div className="mt-5 grid gap-4"><div><label className="text-sm">Buscar equipo principal<input className="field mt-1" placeholder="Ej. MCA peladora PE008" value={parentSearch} onChange={(event) => { setParentSearch(event.target.value); setParentCode(""); }} /></label>{parentSearch.trim() && !selectedParent ? <div className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/80 p-2">{matchingCandidates.length ? matchingCandidates.map((asset) => <button type="button" key={asset.codigo} onClick={() => { setParentCode(asset.codigo); setParentSearch(`${asset.codigo} · ${asset.nombre}`); }} className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-primary/15 hover:text-primary"><span className="font-semibold">{asset.codigo} · {asset.nombre}</span><span className="block text-xs text-muted-foreground">{asset.sucursal} · {asset.area} · {asset.ubicacion}</span></button>) : <p className="p-3 text-sm text-muted-foreground">No se encontraron equipos.</p>}</div> : null}{selectedParent ? <p className="mt-2 rounded-xl bg-primary/15 p-3 text-sm text-primary">Seleccionado: {selectedParent.codigo} · {selectedParent.nombre}</p> : null}</div><label className="text-sm">Ubicación dentro del equipo<input className="field mt-1" value={location} onChange={(event) => setLocation(event.target.value)} /></label><label className="text-sm">Motivo<input className="field mt-1" value={reason} onChange={(event) => setReason(event.target.value)} /></label></div>{error ? <p className="mt-4 rounded-xl bg-red-500/15 p-3 text-red-200">{error}</p> : null}<div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="nav-button">Cancelar</button><button disabled={saving} className="rounded-xl bg-primary px-5 py-2 font-semibold text-primary-foreground disabled:opacity-50">{saving ? "Integrando..." : "Confirmar integración"}</button></div></form></div>;
 }
 
 function Filter({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) { return <select className="field" value={value} onChange={(e) => onChange(e.target.value)}><option value="">{label}</option>{options.map(o => <option key={o}>{o}</option>)}</select>; }

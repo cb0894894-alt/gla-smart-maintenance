@@ -225,6 +225,10 @@ function doPost(e) {
       return jsonResponse(createAssetComponent_(payload));
     }
 
+    if (payload.accion === "convertirActivoEnComponente") {
+      return jsonResponse(convertAssetToComponent_(payload));
+    }
+
     return jsonResponse({ ok: false, error: "Accion no soportada." });
   } catch (error) {
     return jsonResponse({ ok: false, error: String(error.message || error) });
@@ -291,6 +295,47 @@ function createAssetComponent_(payload) {
   }
 }
 
+function convertAssetToComponent_(payload) {
+  validateRequired_(payload, ["codigoOrigen", "codigoActivoPadre", "ubicacion", "motivo", "responsable"]);
+  if (payload.codigoOrigen === payload.codigoActivoPadre)
+    throw new Error("El activo no puede ser componente de sí mismo.");
+  const assetSheet = getSheet_(SHEET_ACTIVOS);
+  const assetHeaders = ensureAssetHeaders_(assetSheet);
+  const sourceRowNumber = findAssetRow_(assetSheet, assetHeaders, payload.codigoOrigen);
+  const parentRowNumber = findAssetRow_(assetSheet, assetHeaders, payload.codigoActivoPadre);
+  if (sourceRowNumber === -1) throw new Error("No existe el activo de origen.");
+  if (parentRowNumber === -1) throw new Error("No existe el equipo principal.");
+  const source = assetSheet.getRange(sourceRowNumber, 1, 1, assetHeaders.length).getValues()[0];
+  const previousStatus = assetValue_(source, assetHeaders, "Estado");
+  let componentSheet = SpreadsheetApp.getActive().getSheetByName(SHEET_ASSET_COMPONENTS);
+  if (!componentSheet) componentSheet = SpreadsheetApp.getActive().insertSheet(SHEET_ASSET_COMPONENTS);
+  const componentHeaders = ensureFlexibleHeaders_(componentSheet, ASSET_COMPONENT_HEADERS);
+  const componentCodeIndex = componentHeaders.map(normalizeAssetHeader_).indexOf(normalizeAssetHeader_("CodigoComponente"));
+  if (componentSheet.getLastRow() >= 2) {
+    const duplicate = componentSheet.getRange(2, componentCodeIndex + 1, componentSheet.getLastRow() - 1, 1).getValues().some(function (row) { return String(row[0]) === String(payload.codigoOrigen); });
+    if (duplicate) throw new Error("Este activo ya fue integrado como componente.");
+  }
+  const values = {
+    idcomponente: "MIG-" + Utilities.getUuid(), codigoactivo: payload.codigoActivoPadre,
+    codigocomponente: payload.codigoOrigen, nombre: assetValue_(source, assetHeaders, "Nombre"),
+    tipo: assetValue_(source, assetHeaders, "Tipo"), marca: assetValue_(source, assetHeaders, "Marca"),
+    modelo: assetValue_(source, assetHeaders, "Modelo"), numeroserie: "", ubicacion: payload.ubicacion,
+    estado: previousStatus, fechainstalacion: "", fechacreacion: new Date()
+  };
+  componentSheet.appendRow(componentHeaders.map(function (header) {
+    const key = normalizeAssetHeader_(header).replace(/\s/g, "");
+    return values[key] === undefined ? "" : values[key];
+  }));
+  setAssetValue_(assetSheet, sourceRowNumber, assetHeaders, "Estado", "Integrado como componente");
+  setAssetValue_(assetSheet, sourceRowNumber, assetHeaders, "FechaActualización", new Date());
+  appendAssetMovement_(payload.codigoOrigen, new Date(), { estado: previousStatus }, {
+    estado: "Integrado como componente", motivo: payload.motivo,
+    responsable: payload.responsable, sucursal: assetValue_(source, assetHeaders, "Sucursal"),
+    area: assetValue_(source, assetHeaders, "Área"), ubicacion: assetValue_(source, assetHeaders, "Ubicación")
+  });
+  return { ok: true, codigoComponente: payload.codigoOrigen, codigoActivo: payload.codigoActivoPadre };
+}
+
 function normalizeAssetHeader_(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
@@ -323,9 +368,18 @@ function setAssetValue_(sheet, rowNumber, headers, header, value) {
 
 function findAssetRow_(sheet, headers, codigo) {
   if (sheet.getLastRow() < 2) return -1;
-  const codeIndex = headers.map(normalizeAssetHeader_).indexOf("codigo");
+  const normalizedHeaders = headers.map(normalizeAssetHeader_);
+  const codeIndexes = normalizedHeaders.map(function (header, index) {
+    return header === "codigo" || header === "id" ? index : -1;
+  }).filter(function (index) { return index >= 0; });
+  if (codeIndexes.length === 0) return -1;
   const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
-  const index = values.findIndex(function (row) { return String(row[codeIndex]).trim() === String(codigo).trim(); });
+  const target = String(codigo).trim();
+  const index = values.findIndex(function (row) {
+    return codeIndexes.some(function (codeIndex) {
+      return String(row[codeIndex]).trim() === target;
+    });
+  });
   return index === -1 ? -1 : index + 2;
 }
 

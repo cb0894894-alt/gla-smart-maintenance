@@ -88,6 +88,7 @@ export const API_ACTION_PERMISSIONS: Record<string, Permission> = {
   actualizarActivo: "activos:write",
   componentesActivos: "activos:read",
   crearComponenteActivo: "activos:write",
+  convertirActivoEnComponente: "activos:write",
   usuarios: "usuarios:read",
   crearUsuario: "usuarios:write",
   indicadores: "indicadores:read",

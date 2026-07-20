@@ -68,3 +68,20 @@ export async function createComponent(input: ComponentInput) {
   if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo crear el componente.");
   return data as { ok: true; codigoComponente: string };
 }
+
+export async function convertAssetToComponent(input: {
+  codigoOrigen: string;
+  codigoActivoPadre: string;
+  ubicacion: string;
+  motivo: string;
+  responsable: string;
+}) {
+  const response = await fetch("/api/google-sheets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accion: "convertirActivoEnComponente", ...input }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo convertir el activo.");
+  return data as { ok: true };
+}
