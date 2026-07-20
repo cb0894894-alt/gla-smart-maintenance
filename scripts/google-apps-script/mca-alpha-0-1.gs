@@ -30,6 +30,7 @@ const SHEET_HISTORY = "MNT_Historial";
 const SHEET_INDICATORS = "KPI_Indicadores";
 const SHEET_USERS = "CFG_Usuarios";
 const SHEET_ASSET_MOVEMENTS = "ACT_Movimientos";
+const SHEET_ASSET_COMPONENTS = "ACT_Componentes";
 const OPERATIONAL_TIME_ZONE = "America/Mazatlan";
 const OT_HEADERS = [
   "Folio",
@@ -130,6 +131,10 @@ const ASSET_MOVEMENT_HEADERS = [
   "AreaAnterior", "AreaNueva", "UbicacionAnterior", "UbicacionNueva",
   "EstadoAnterior", "EstadoNuevo", "Motivo", "Responsable"
 ];
+const ASSET_COMPONENT_HEADERS = [
+  "IdComponente", "CodigoActivo", "CodigoComponente", "Nombre", "Tipo", "Marca",
+  "Modelo", "NumeroSerie", "Ubicacion", "Estado", "FechaInstalacion", "FechaCreacion"
+];
 
 function doGet(e) {
   const accion = e && e.parameter ? e.parameter.accion : "";
@@ -143,6 +148,10 @@ function doGet(e) {
     return jsonResponse(readSheetAsObjects_(SHEET_ASSET_MOVEMENTS).filter(function (item) {
       return !codigo || String(item.CodigoActivo || "") === codigo;
     }));
+  }
+
+  if (accion === "componentesActivos") {
+    return jsonResponse(readSheetAsObjects_(SHEET_ASSET_COMPONENTS));
   }
 
   if (accion === "ordenesTrabajo") {
@@ -212,9 +221,73 @@ function doPost(e) {
       return jsonResponse(updateAsset_(payload));
     }
 
+    if (payload.accion === "crearComponenteActivo") {
+      return jsonResponse(createAssetComponent_(payload));
+    }
+
     return jsonResponse({ ok: false, error: "Accion no soportada." });
   } catch (error) {
     return jsonResponse({ ok: false, error: String(error.message || error) });
+  }
+}
+
+function ensureFlexibleHeaders_(sheet, expected) {
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(expected);
+    return expected.slice();
+  }
+  const headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map(String);
+  expected.forEach(function (header) {
+    if (headers.map(normalizeAssetHeader_).indexOf(normalizeAssetHeader_(header)) === -1) {
+      headers.push(header);
+      sheet.getRange(1, headers.length).setValue(header);
+    }
+  });
+  return headers;
+}
+
+function nextComponentCode_(sheet, headers, assetCode) {
+  const parent = String(assetCode).split("-").slice(-2).join("").replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 8);
+  const prefix = "CMP-" + parent + "-";
+  const index = headers.map(normalizeAssetHeader_).indexOf(normalizeAssetHeader_("CodigoComponente"));
+  let highest = 0;
+  if (sheet.getLastRow() >= 2 && index >= 0) {
+    sheet.getRange(2, index + 1, sheet.getLastRow() - 1, 1).getValues().forEach(function (row) {
+      const match = String(row[0] || "").match(new RegExp("^" + prefix + "(\\d+)$", "i"));
+      if (match) highest = Math.max(highest, Number(match[1]));
+    });
+  }
+  return prefix + String(highest + 1).padStart(3, "0");
+}
+
+function createAssetComponent_(payload) {
+  validateRequired_(payload, ["codigoActivo", "nombre", "tipo", "ubicacion", "estado"]);
+  const parentSheet = getSheet_(SHEET_ACTIVOS);
+  const parentHeaders = ensureAssetHeaders_(parentSheet);
+  if (findAssetRow_(parentSheet, parentHeaders, payload.codigoActivo) === -1)
+    throw new Error("No existe el equipo principal " + payload.codigoActivo);
+  let sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_ASSET_COMPONENTS);
+  if (!sheet) sheet = SpreadsheetApp.getActive().insertSheet(SHEET_ASSET_COMPONENTS);
+  const headers = ensureFlexibleHeaders_(sheet, ASSET_COMPONENT_HEADERS);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const code = nextComponentCode_(sheet, headers, payload.codigoActivo);
+    const id = "COMP-" + Utilities.getUuid();
+    const values = {
+      idcomponente: id, codigoactivo: payload.codigoActivo, codigocomponente: code,
+      nombre: payload.nombre, tipo: payload.tipo, marca: payload.marca || "",
+      modelo: payload.modelo || "", numeroserie: payload.numeroSerie || "",
+      ubicacion: payload.ubicacion, estado: payload.estado,
+      fechainstalacion: payload.fechaInstalacion || "", fechacreacion: new Date()
+    };
+    sheet.appendRow(headers.map(function (header) {
+      const key = normalizeAssetHeader_(header).replace(/\s/g, "");
+      return values[key] === undefined ? "" : values[key];
+    }));
+    return { ok: true, codigoComponente: code };
+  } finally {
+    lock.releaseLock();
   }
 }
 

@@ -1,8 +1,8 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Boxes, History, Pencil, Plus, Search, X } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { AlertCircle, Boxes, ChevronDown, ChevronRight, History, Pencil, Plus, Search, Wrench, X } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import {
   createAsset, fetchAssetMovements, fetchAssets, updateAsset, validateAsset,
   type Asset, type AssetMovement, type AssetMutationInput,
 } from "@/lib/assets/google-sheets";
+import { createComponent, fetchComponents, validateComponent, type AssetComponent, type ComponentInput } from "@/lib/assets/components";
 
 const PAGE_SIZE = 25;
 const EMPTY_ASSET: AssetMutationInput = {
@@ -39,6 +40,9 @@ export default function AssetsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [movementAsset, setMovementAsset] = useState<Asset | null>(null);
   const [movements, setMovements] = useState<AssetMovement[] | null>(null);
+  const [components, setComponents] = useState<AssetComponent[]>([]);
+  const [expandedAsset, setExpandedAsset] = useState<string | null>(null);
+  const [componentParent, setComponentParent] = useState<Asset | null>(null);
   const canWrite = user?.role === "Administrador" && permissions.includes("activos:write");
 
   async function reloadAssets() {
@@ -52,6 +56,8 @@ export default function AssetsPage() {
       setError("No se pudieron cargar los activos desde Google Sheets.");
     }).finally(() => setIsLoading(false));
   }, []);
+
+  useEffect(() => { fetchComponents().then(setComponents).catch(() => setComponents([])); }, []);
 
   useEffect(() => setPage(1), [search, sucursal, area, estado, criticidad]);
 
@@ -93,6 +99,10 @@ export default function AssetsPage() {
     setMovementAsset(asset); setMovements(null);
     try { setMovements(await fetchAssetMovements(asset.codigo)); } catch { setMovements([]); }
   }
+  async function componentCreated() {
+    setComponents(await fetchComponents());
+    setComponentParent(null);
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(20,184,166,0.24),_transparent_32rem)] md:flex">
@@ -125,17 +135,18 @@ export default function AssetsPage() {
           <div className="mt-6 max-w-full overflow-x-auto rounded-2xl border border-white/10">
             {isLoading ? <State title="Cargando activos" detail="Consultando Google Sheets..." /> : error ? <State title="Error al cargar" detail={error} error /> : filteredAssets.length === 0 ? <State title="Sin activos" detail="No hay registros para los filtros seleccionados." /> :
               <table className="w-full min-w-[1300px] text-left text-sm"><thead className="bg-slate-950/80 text-muted-foreground"><tr>{["Código","Nombre","Tipo","Sucursal","Área","Ubicación","Marca","Modelo","Estado","Criticidad","Acciones"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
-              <tbody className="divide-y divide-white/10">{paginatedAssets.map((asset, index) => <tr key={`${asset.codigo}-${index}`} className="bg-slate-950/40 hover:bg-white/[0.06]">
-                <td className="px-4 py-3 font-semibold text-primary">{asset.codigo || "—"}</td><td className="px-4 py-3">{asset.nombre || "—"}</td><td className="px-4 py-3 text-muted-foreground">{asset.tipo || "—"}</td>
+              <tbody className="divide-y divide-white/10">{paginatedAssets.map((asset, index) => { const children = components.filter((component) => component.codigoActivo === asset.codigo); const expanded = expandedAsset === asset.codigo; return <Fragment key={`${asset.codigo}-${index}`}><tr className="bg-slate-950/40 hover:bg-white/[0.06]">
+                <td className="px-4 py-3 font-semibold text-primary"><button className="flex items-center gap-2" onClick={() => setExpandedAsset(expanded ? null : asset.codigo)}>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{asset.codigo || "—"}<span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-muted-foreground">{children.length}</span></button></td><td className="px-4 py-3">{asset.nombre || "—"}</td><td className="px-4 py-3 text-muted-foreground">{asset.tipo || "—"}</td>
                 <td className="px-4 py-3">{asset.sucursal || "—"}</td><td className="px-4 py-3">{asset.area || "—"}</td><td className="px-4 py-3">{asset.ubicacion || "—"}</td><td className="px-4 py-3">{asset.marca || "—"}</td><td className="px-4 py-3">{asset.modelo || "—"}</td>
                 <td className="px-4 py-3"><Badge className={asset.estado === "Baja" ? "bg-red-500/20 text-red-200" : "bg-primary/15 text-primary"}>{asset.estado || "—"}</Badge></td><td className="px-4 py-3">{asset.criticidad || "—"}</td>
-                <td className="px-4 py-3"><div className="flex gap-2">{canWrite ? <IconButton title="Editar" onClick={() => openEdit(asset)} icon={<Pencil className="h-4 w-4" />} /> : null}<IconButton title="Historial" onClick={() => showHistory(asset)} icon={<History className="h-4 w-4" />} /></div></td>
-              </tr>)}</tbody></table>}
+                <td className="px-4 py-3"><div className="flex gap-2">{canWrite ? <IconButton title="Agregar componente" onClick={() => setComponentParent(asset)} icon={<Wrench className="h-4 w-4" />} /> : null}{canWrite ? <IconButton title="Editar" onClick={() => openEdit(asset)} icon={<Pencil className="h-4 w-4" />} /> : null}<IconButton title="Historial" onClick={() => showHistory(asset)} icon={<History className="h-4 w-4" />} /></div></td>
+              </tr>{expanded ? <tr className="bg-cyan-950/20"><td colSpan={11} className="p-4"><ComponentList components={children} onAdd={canWrite ? () => setComponentParent(asset) : undefined} /></td></tr> : null}</Fragment>})}</tbody></table>}
           </div>
           <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground"><span>Mostrando {paginatedAssets.length} de {filteredAssets.length}</span><div className="flex gap-2"><button disabled={page === 1} onClick={() => setPage(page - 1)} className="nav-button">Anterior</button><span className="px-3 py-2">Página {page} de {totalPages}</span><button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="nav-button">Siguiente</button></div></div>
         </CardContent></Card>
         {editing ? <AssetEditor value={editing} isNew={isNew} saving={saving} error={formError} onChange={setEditing} onClose={() => setEditing(null)} onSubmit={saveAsset} /> : null}
         {movementAsset ? <MovementHistory asset={movementAsset} movements={movements} onClose={() => setMovementAsset(null)} /> : null}
+        {componentParent ? <ComponentEditor asset={componentParent} onClose={() => setComponentParent(null)} onSaved={componentCreated} /> : null}
       </section>
     </main>
   );
@@ -159,6 +170,28 @@ function MovementHistory({ asset, movements, onClose }: { asset: Asset; movement
   return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 p-4 backdrop-blur"><div className="mx-auto mt-8 max-w-5xl rounded-3xl border border-white/10 bg-slate-900 p-6"><div className="flex justify-between"><div><h3 className="text-2xl font-bold">Historial · {asset.nombre}</h3><p className="text-muted-foreground">{asset.codigo}</p></div><button onClick={onClose}><X /></button></div>
     <div className="mt-6 overflow-x-auto">{movements === null ? <p>Cargando historial...</p> : movements.length === 0 ? <p className="text-muted-foreground">No hay movimientos registrados todavía.</p> : <table className="w-full min-w-[900px] text-sm"><thead><tr>{["Fecha","Sucursal","Área","Ubicación","Estado","Motivo","Responsable"].map(h => <th key={h} className="px-3 py-2 text-left">{h}</th>)}</tr></thead><tbody>{movements.map((m) => <tr key={m.idMovimiento} className="border-t border-white/10"><td className="px-3 py-3">{m.fecha}</td><td>{m.sucursalAnterior || "—"} → {m.sucursalNueva}</td><td>{m.areaAnterior || "—"} → {m.areaNueva}</td><td>{m.ubicacionAnterior || "—"} → {m.ubicacionNueva}</td><td>{m.estadoAnterior || "—"} → {m.estadoNuevo}</td><td>{m.motivo}</td><td>{m.responsable}</td></tr>)}</tbody></table>}</div>
   </div></div>;
+}
+
+function ComponentList({ components, onAdd }: { components: AssetComponent[]; onAdd?: () => void }) {
+  if (components.length === 0) return <div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">Este equipo todavía no tiene componentes relacionados.</p>{onAdd ? <button onClick={onAdd} className="inline-flex items-center gap-2 rounded-xl border border-primary/40 px-3 py-2 text-sm text-primary"><Plus className="h-4 w-4" />Agregar componente</button> : null}</div>;
+  return <div><p className="mb-3 font-semibold">Componentes del equipo</p><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{components.map((component) => <div key={component.idComponente || component.codigoComponente} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4"><div className="flex items-start justify-between"><div><p className="font-semibold">{component.nombre}</p><p className="text-xs text-primary">{component.codigoComponente}</p></div><Badge className="bg-primary/15 text-primary">{component.estado}</Badge></div><dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground"><div><dt>Tipo</dt><dd className="text-white">{component.tipo || "—"}</dd></div><div><dt>Ubicación</dt><dd className="text-white">{component.ubicacion || "—"}</dd></div><div><dt>Marca</dt><dd className="text-white">{component.marca || "—"}</dd></div><div><dt>Modelo</dt><dd className="text-white">{component.modelo || "—"}</dd></div><div className="col-span-2"><dt>Serie</dt><dd className="text-white">{component.numeroSerie || "—"}</dd></div></dl></div>)}</div></div>;
+}
+
+function ComponentEditor({ asset, onClose, onSaved }: { asset: Asset; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [value, setValue] = useState<ComponentInput>({ codigoActivo: asset.codigo, nombre: "", tipo: "", marca: "", modelo: "", numeroSerie: "", ubicacion: "", estado: "Operando", fechaInstalacion: "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const set = (field: keyof ComponentInput, next: string) => setValue((current) => ({ ...current, [field]: next }));
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const validation = validateComponent(value);
+    if (validation) return setError(validation);
+    setSaving(true); setError(null);
+    try { await createComponent(value); await onSaved(); }
+    catch (saveError) { setError(saveError instanceof Error ? saveError.message : "No se pudo guardar."); }
+    finally { setSaving(false); }
+  }
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 p-4 backdrop-blur"><form onSubmit={submit} className="mx-auto mt-8 max-w-3xl rounded-3xl border border-white/10 bg-slate-900 p-6"><div className="flex items-start justify-between"><div><h3 className="text-2xl font-bold">Nuevo componente</h3><p className="text-sm text-muted-foreground">Equipo principal: {asset.nombre} · {asset.codigo}</p></div><button type="button" onClick={onClose}><X /></button></div><div className="mt-6 grid gap-4 sm:grid-cols-2">{([['nombre','Nombre'],['tipo','Tipo'],['marca','Marca'],['modelo','Modelo'],['numeroSerie','Número de serie'],['ubicacion','Ubicación dentro del equipo'],['fechaInstalacion','Fecha de instalación']] as [keyof ComponentInput,string][]).map(([field,label]) => <label key={field} className="text-sm">{label}<input type={field === 'fechaInstalacion' ? 'date' : 'text'} className="field mt-1" value={value[field]} onChange={(event) => set(field,event.target.value)} /></label>)}<label className="text-sm">Estado<select className="field mt-1" value={value.estado} onChange={(event) => set('estado',event.target.value)}>{["Operando","Detenido","En mantenimiento","Fuera de servicio","Baja"].map((option) => <option key={option}>{option}</option>)}</select></label></div>{error ? <p className="mt-4 rounded-xl bg-red-500/15 p-3 text-red-200">{error}</p> : null}<div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} className="nav-button">Cancelar</button><button disabled={saving} className="rounded-xl bg-primary px-5 py-2 font-semibold text-primary-foreground disabled:opacity-50">{saving ? "Guardando..." : "Guardar componente"}</button></div></form></div>;
 }
 
 function Filter({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) { return <select className="field" value={value} onChange={(e) => onChange(e.target.value)}><option value="">{label}</option>{options.map(o => <option key={o}>{o}</option>)}</select>; }

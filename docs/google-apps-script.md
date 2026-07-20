@@ -9,6 +9,8 @@ Esta versión conecta el módulo real de **Órdenes de Trabajo** con las hojas `
 - El código se genera como `EQ-SUCURSAL-TI###`; por ejemplo, `EQ-MCA-AL005`.
 - `POST { accion: "actualizarActivo", ... }`: actualiza sus datos y registra cambios de ubicación o estado.
 - `GET ?accion=movimientosActivos&codigoActivo=...`: consulta la trazabilidad en `ACT_Movimientos`.
+- `GET ?accion=componentesActivos`: devuelve motores, bandas y otras partes relacionadas en `ACT_Componentes`.
+- `POST { accion: "crearComponenteActivo", ... }`: vincula un componente con su equipo principal y genera su código.
 - `GET ?accion=ordenesTrabajo`: devuelve las filas reales de `OT_OrdenesTrabajo` como objetos JSON.
 - `POST` con JSON `{ "accion": "crearOrdenTrabajo", ... }`: crea una fila en `OT_OrdenesTrabajo` y responde `{ "ok": true, "folio": "OT-YYYYMMDD-0001", "estado": "Abierta" }`.
 - `POST` con JSON `{ "accion": "actualizarEstadoOrdenTrabajo", "folio": "OT-...", "estado": "Asignada" }`: actualiza únicamente la columna `Estado` de una OT existente.
