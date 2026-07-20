@@ -83,6 +83,9 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
 
 export const API_ACTION_PERMISSIONS: Record<string, Permission> = {
   activos: "activos:read",
+  movimientosActivos: "activos:read",
+  crearActivo: "activos:write",
+  actualizarActivo: "activos:write",
   usuarios: "usuarios:read",
   crearUsuario: "usuarios:write",
   indicadores: "indicadores:read",

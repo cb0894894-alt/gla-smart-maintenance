@@ -5,6 +5,9 @@ Esta versión conecta el módulo real de **Órdenes de Trabajo** con las hojas `
 ## Acciones admitidas
 
 - `GET ?accion=activos`: devuelve los activos reales de la hoja `ACT_Activos`.
+- `POST { accion: "crearActivo", ... }`: registra una maquinaria con sucursal, área y ubicación.
+- `POST { accion: "actualizarActivo", ... }`: actualiza sus datos y registra cambios de ubicación o estado.
+- `GET ?accion=movimientosActivos&codigoActivo=...`: consulta la trazabilidad en `ACT_Movimientos`.
 - `GET ?accion=ordenesTrabajo`: devuelve las filas reales de `OT_OrdenesTrabajo` como objetos JSON.
 - `POST` con JSON `{ "accion": "crearOrdenTrabajo", ... }`: crea una fila en `OT_OrdenesTrabajo` y responde `{ "ok": true, "folio": "OT-YYYYMMDD-0001", "estado": "Abierta" }`.
 - `POST` con JSON `{ "accion": "actualizarEstadoOrdenTrabajo", "folio": "OT-...", "estado": "Asignada" }`: actualiza únicamente la columna `Estado` de una OT existente.

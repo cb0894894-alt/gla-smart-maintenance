@@ -15,6 +15,8 @@
  * - POST { accion: "registrarEjecucionPreventivo", idPM, fechaEjecucion }: updates UltimaEjecucion and ProximaEjecucion.
  * - POST { accion: "crearUsuario", ... }: appends a row to "CFG_Usuarios".
  * - POST { accion: "actualizarUsuario", idUsuario, ... }: updates a row in "CFG_Usuarios".
+ * - POST { accion: "crearActivo" | "actualizarActivo", ... }: manages ACT_Activos.
+ * - GET  ?accion=movimientosActivos&codigoActivo=...: returns asset movement history.
  *
  * Expected OT_OrdenesTrabajo columns:
  * Folio, FechaHoraReporte, CodigoActivo, Activo, Area, Criticidad, Reporta,
@@ -27,6 +29,7 @@ const SHEET_INVENTORY = "INV_Refacciones";
 const SHEET_HISTORY = "MNT_Historial";
 const SHEET_INDICATORS = "KPI_Indicadores";
 const SHEET_USERS = "CFG_Usuarios";
+const SHEET_ASSET_MOVEMENTS = "ACT_Movimientos";
 const OPERATIONAL_TIME_ZONE = "America/Mazatlan";
 const OT_HEADERS = [
   "Folio",
@@ -118,12 +121,28 @@ const USER_HEADERS = [
 ];
 const USER_ROLES = ["Administrador", "Supervisor", "Técnico", "Consulta"];
 const USER_STATUSES = ["Activo", "Inactivo"];
+const ASSET_HEADERS = [
+  "Código", "Nombre", "Tipo", "Sucursal", "Área", "Ubicación", "Marca",
+  "Estado", "Criticidad", "FechaCreación", "FechaActualización"
+];
+const ASSET_MOVEMENT_HEADERS = [
+  "IdMovimiento", "CodigoActivo", "Fecha", "SucursalAnterior", "SucursalNueva",
+  "AreaAnterior", "AreaNueva", "UbicacionAnterior", "UbicacionNueva",
+  "EstadoAnterior", "EstadoNuevo", "Motivo", "Responsable"
+];
 
 function doGet(e) {
   const accion = e && e.parameter ? e.parameter.accion : "";
 
   if (accion === "activos") {
     return jsonResponse(readSheetAsObjects_(SHEET_ACTIVOS));
+  }
+
+  if (accion === "movimientosActivos") {
+    const codigo = e && e.parameter ? String(e.parameter.codigoActivo || "") : "";
+    return jsonResponse(readSheetAsObjects_(SHEET_ASSET_MOVEMENTS).filter(function (item) {
+      return !codigo || String(item.CodigoActivo || "") === codigo;
+    }));
   }
 
   if (accion === "ordenesTrabajo") {
@@ -185,10 +204,141 @@ function doPost(e) {
       return jsonResponse(updateUser_(payload));
     }
 
+    if (payload.accion === "crearActivo") {
+      return jsonResponse(createAsset_(payload));
+    }
+
+    if (payload.accion === "actualizarActivo") {
+      return jsonResponse(updateAsset_(payload));
+    }
+
     return jsonResponse({ ok: false, error: "Accion no soportada." });
   } catch (error) {
     return jsonResponse({ ok: false, error: String(error.message || error) });
   }
+}
+
+function normalizeAssetHeader_(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function ensureAssetHeaders_(sheet) {
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(ASSET_HEADERS);
+    return ASSET_HEADERS.slice();
+  }
+  const width = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, width).getValues()[0].map(String);
+  ASSET_HEADERS.forEach(function (header) {
+    if (headers.map(normalizeAssetHeader_).indexOf(normalizeAssetHeader_(header)) === -1) {
+      headers.push(header);
+      sheet.getRange(1, headers.length).setValue(header);
+    }
+  });
+  return headers;
+}
+
+function assetValue_(row, headers, header) {
+  const index = headers.map(normalizeAssetHeader_).indexOf(normalizeAssetHeader_(header));
+  return index === -1 ? "" : row[index];
+}
+
+function setAssetValue_(sheet, rowNumber, headers, header, value) {
+  const index = headers.map(normalizeAssetHeader_).indexOf(normalizeAssetHeader_(header));
+  sheet.getRange(rowNumber, index + 1).setValue(value);
+}
+
+function findAssetRow_(sheet, headers, codigo) {
+  if (sheet.getLastRow() < 2) return -1;
+  const codeIndex = headers.map(normalizeAssetHeader_).indexOf("codigo");
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  const index = values.findIndex(function (row) { return String(row[codeIndex]).trim() === String(codigo).trim(); });
+  return index === -1 ? -1 : index + 2;
+}
+
+function validateAssetPayload_(payload, requireCode) {
+  const fields = ["nombre", "tipo", "sucursal", "area", "ubicacion", "estado", "criticidad", "responsable"];
+  if (requireCode) fields.unshift("codigo");
+  validateRequired_(payload, fields);
+}
+
+function createAsset_(payload) {
+  validateAssetPayload_(payload, false);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+  const sheet = getSheet_(SHEET_ACTIVOS);
+  const headers = ensureAssetHeaders_(sheet);
+  payload.codigo = nextAssetCode_(sheet, headers, payload.sucursal);
+  const now = new Date();
+  const values = {
+    id: payload.codigo, codigo: payload.codigo, nombre: payload.nombre, tipo: payload.tipo,
+    sucursal: payload.sucursal, area: payload.area, ubicacion: payload.ubicacion,
+    marca: payload.marca || "", estado: payload.estado, criticidad: payload.criticidad,
+    fechacreacion: now, fechaactualizacion: now
+  };
+  sheet.appendRow(headers.map(function (header) {
+    const key = normalizeAssetHeader_(header).replace(/\s/g, "");
+    return values[key] === undefined ? "" : values[key];
+  }));
+  appendAssetMovement_(payload.codigo, now, {}, payload);
+  return { ok: true, codigo: payload.codigo };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function updateAsset_(payload) {
+  validateAssetPayload_(payload, true);
+  const sheet = getSheet_(SHEET_ACTIVOS);
+  const headers = ensureAssetHeaders_(sheet);
+  const rowNumber = findAssetRow_(sheet, headers, payload.codigo);
+  if (rowNumber === -1) throw new Error("No existe el activo " + payload.codigo);
+  const row = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
+  const previous = {
+    sucursal: assetValue_(row, headers, "Sucursal"), area: assetValue_(row, headers, "Área"),
+    ubicacion: assetValue_(row, headers, "Ubicación"), estado: assetValue_(row, headers, "Estado")
+  };
+  const hasTrackedChange = previous.sucursal !== payload.sucursal || previous.area !== payload.area ||
+    previous.ubicacion !== payload.ubicacion || previous.estado !== payload.estado;
+  if (hasTrackedChange && !payload.motivo) throw new Error("Captura el motivo del cambio.");
+  [["Nombre", payload.nombre], ["Tipo", payload.tipo], ["Sucursal", payload.sucursal],
+   ["Área", payload.area], ["Ubicación", payload.ubicacion], ["Marca", payload.marca || ""],
+   ["Estado", payload.estado], ["Criticidad", payload.criticidad], ["FechaActualización", new Date()]
+  ].forEach(function (entry) { setAssetValue_(sheet, rowNumber, headers, entry[0], entry[1]); });
+  if (hasTrackedChange) {
+    appendAssetMovement_(payload.codigo, new Date(), previous, payload);
+  }
+  return { ok: true, codigo: payload.codigo };
+}
+
+function nextAssetCode_(sheet, headers, sucursal) {
+  const branch = String(sucursal || "GEN").normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase().slice(0, 6) || "GEN";
+  const prefix = "EQ-" + branch + "-";
+  const codeIndex = headers.map(normalizeAssetHeader_).indexOf("codigo");
+  let highest = 0;
+  if (sheet.getLastRow() >= 2 && codeIndex >= 0) {
+    const codes = sheet.getRange(2, codeIndex + 1, sheet.getLastRow() - 1, 1).getValues();
+    codes.forEach(function (row) {
+      const match = String(row[0] || "").match(new RegExp("^" + prefix + "(\\d+)$", "i"));
+      if (match) highest = Math.max(highest, Number(match[1]));
+    });
+  }
+  return prefix + String(highest + 1).padStart(4, "0");
+}
+
+function appendAssetMovement_(codigo, date, previous, current) {
+  let sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_ASSET_MOVEMENTS);
+  if (!sheet) sheet = SpreadsheetApp.getActive().insertSheet(SHEET_ASSET_MOVEMENTS);
+  ensureHeaders_(sheet, ASSET_MOVEMENT_HEADERS, SHEET_ASSET_MOVEMENTS);
+  sheet.appendRow([
+    "MOV-" + Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyyMMddHHmmss"), codigo, date,
+    previous.sucursal || "", current.sucursal || "", previous.area || "", current.area || "",
+    previous.ubicacion || "", current.ubicacion || "", previous.estado || "", current.estado || "",
+    current.motivo || "Alta inicial", current.responsable || ""
+  ]);
 }
 
 function createWorkOrder_(payload) {
@@ -797,6 +947,8 @@ function nextWorkOrderFolio_(sheet) {
 }
 
 function readSheetAsObjects_(sheetName) {
+  if (sheetName === SHEET_ASSET_MOVEMENTS && !SpreadsheetApp.getActive().getSheetByName(sheetName))
+    return [];
   const sheet = getSheet_(sheetName);
   if (sheetName === SHEET_HISTORY)
     ensureHeaders_(sheet, HISTORY_HEADERS, SHEET_HISTORY);
