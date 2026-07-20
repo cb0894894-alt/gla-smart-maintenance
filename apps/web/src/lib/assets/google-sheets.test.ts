@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createAsset,
+  matchesAssetSearch,
   parseAssetsResponse,
   updateAsset,
   validateAsset,
@@ -47,6 +48,17 @@ describe("asset management", () => {
 
   it("allows an empty code when the server will generate it", () => {
     expect(validateAsset({ ...asset, codigo: "" }, false).codigo).toBeUndefined();
+  });
+
+  it("searches every useful asset field ignoring case and accents", () => {
+    expect(matchesAssetSearch(asset, "produccion")).toBe(true);
+    expect(matchesAssetSearch(asset, "línea 1")).toBe(true);
+    expect(matchesAssetSearch(asset, "ATLAS")).toBe(true);
+    expect(matchesAssetSearch(asset, "ga-30")).toBe(true);
+    expect(matchesAssetSearch(asset, "centro compresor atlas ga-30")).toBe(true);
+    expect(matchesAssetSearch(asset, "atlas línea producción")).toBe(true);
+    expect(matchesAssetSearch(asset, "atlas otra-area")).toBe(false);
+    expect(matchesAssetSearch(asset, "sin coincidencia")).toBe(false);
   });
 
   it("sends create and update actions through the protected proxy", async () => {

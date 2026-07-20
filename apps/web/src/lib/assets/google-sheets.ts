@@ -133,6 +133,22 @@ export async function fetchAssets() {
   return parseAssetsResponse(await response.json());
 }
 
+export function matchesAssetSearch(asset: Asset, search: string) {
+  const terms = normalizeKey(search).split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return true;
+  const searchableText = [
+    asset.codigo,
+    asset.nombre,
+    asset.tipo,
+    asset.sucursal,
+    asset.area,
+    asset.ubicacion,
+    asset.marca,
+    asset.modelo,
+  ].map(normalizeKey).join(" ");
+  return terms.every((term) => searchableText.includes(term));
+}
+
 export function validateAsset(input: AssetMutationInput, requireCode = true) {
   const errors: Partial<Record<keyof AssetMutationInput, string>> = {};
   if (requireCode && !input.codigo.trim()) errors.codigo = "Falta el código del activo.";

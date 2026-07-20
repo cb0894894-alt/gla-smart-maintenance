@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSession } from "@/lib/auth/client";
 import {
-  createAsset, fetchAssetMovements, fetchAssets, updateAsset, validateAsset,
+  createAsset, fetchAssetMovements, fetchAssets, matchesAssetSearch, updateAsset, validateAsset,
   type Asset, type AssetMovement, type AssetMutationInput,
 } from "@/lib/assets/google-sheets";
 import { createComponent, fetchComponents, validateComponent, type AssetComponent, type ComponentInput } from "@/lib/assets/components";
@@ -62,9 +62,8 @@ export default function AssetsPage() {
   useEffect(() => setPage(1), [search, sucursal, area, estado, criticidad]);
 
   const filteredAssets = useMemo(() => {
-    const text = search.trim().toLowerCase();
     return assets.filter((asset) =>
-      (!text || asset.codigo.toLowerCase().includes(text) || asset.nombre.toLowerCase().includes(text)) &&
+      matchesAssetSearch(asset, search) &&
       (!sucursal || asset.sucursal === sucursal) && (!area || asset.area === area) &&
       (!estado || asset.estado === estado) && (!criticidad || asset.criticidad === criticidad));
   }, [area, assets, criticidad, estado, search, sucursal]);
@@ -126,7 +125,7 @@ export default function AssetsPage() {
 
         <Card className="mt-6 min-w-0 max-w-full bg-white/[0.04]"><CardHeader><CardTitle>Inventario de activos</CardTitle></CardHeader><CardContent className="min-w-0">
           <div className="grid gap-3 lg:grid-cols-5">
-            <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><input className="field pl-10" placeholder="Código o nombre" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+            <label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><input className="field pl-10" placeholder="Ej. MCA peladora Johnson" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
             <Filter label="Todas las sucursales" value={sucursal} options={uniqueOptions(assets, "sucursal")} onChange={setSucursal} />
             <Filter label="Todas las áreas" value={area} options={uniqueOptions(assets, "area")} onChange={setArea} />
             <Filter label="Todos los estados" value={estado} options={uniqueOptions(assets, "estado")} onChange={setEstado} />
