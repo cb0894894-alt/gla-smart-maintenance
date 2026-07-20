@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { Permission } from "@/lib/auth/permissions";
 import { useSession } from "@/lib/auth/client";
@@ -73,6 +74,7 @@ const navigation: {
 ];
 
 export function Sidebar() {
+  const pathname = usePathname() ?? "/";
   const { user, permissions, loading, error, logout } = useSession();
   const items = user
     ? [
@@ -121,19 +123,26 @@ export function Sidebar() {
             No hay módulos disponibles para el rol {user.role}.
           </p>
         ) : null}
-        {items.map((item, index) => (
-          <a
-            key={item.label}
-            href={item.href}
-            className={cn(
-              "flex min-w-fit items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-muted-foreground transition hover:bg-white/10 hover:text-white",
-              index === 0 && "bg-primary/15 text-primary",
-            )}
-          >
-            <item.icon className="h-5 w-5" />
-            {item.label}
-          </a>
-        ))}
+        {items.map((item) => {
+          const active =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+          return (
+            <a
+              key={item.label}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex min-w-fit items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-muted-foreground transition hover:bg-white/10 hover:text-white",
+                active && "bg-primary/15 text-primary",
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              {item.label}
+            </a>
+          );
+        })}
       </nav>
       {user ? (
         <button

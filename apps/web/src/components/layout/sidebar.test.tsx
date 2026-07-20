@@ -4,6 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Sidebar } from "./sidebar";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 
+let currentPathname = "/";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => currentPathname,
+}));
+
 const adminSession = {
   user: {
     name: "Ana Admin",
@@ -17,6 +23,7 @@ const adminSession = {
 
 describe("Sidebar", () => {
   beforeEach(() => {
+    currentPathname = "/";
     process.env.NEXT_PUBLIC_TEST_SESSION = "fetch";
     vi.stubGlobal(
       "fetch",
@@ -112,6 +119,18 @@ describe("Sidebar", () => {
     expect(
       screen.queryByRole("link", { name: /Inventario/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("marks only the current module as active", async () => {
+    currentPathname = "/inventario";
+    render(<Sidebar />);
+
+    expect(
+      await screen.findByRole("link", { name: "Inventario", current: "page" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Inicio" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it.each([
