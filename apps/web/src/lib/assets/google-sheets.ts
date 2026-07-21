@@ -9,6 +9,9 @@ export type Asset = {
   modelo: string;
   estado: string;
   criticidad: string;
+  sucursalPropietaria?: string;
+  tipoTraslado?: string;
+  fechaRetornoPrevista?: string;
 };
 
 export type AssetMutationInput = Asset & {
@@ -30,6 +33,20 @@ export type AssetMovement = {
   estadoNuevo: string;
   motivo: string;
   responsable: string;
+  tipoMovimiento?: string;
+  fechaRetornoPrevista?: string;
+  sucursalPropietaria?: string;
+};
+
+export type AssetTransferInput = {
+  codigo: string;
+  tipoTraslado: "Temporal" | "Definitivo" | "Retorno";
+  sucursalDestino: string;
+  areaDestino: string;
+  ubicacionDestino: string;
+  fechaRetornoPrevista: string;
+  motivo: string;
+  responsable: string;
 };
 
 const FIELD_ALIASES: Record<keyof Asset, string[]> = {
@@ -43,6 +60,9 @@ const FIELD_ALIASES: Record<keyof Asset, string[]> = {
   marca: ["marca", "brand", "fabricante"],
   estado: ["estado", "status"],
   criticidad: ["criticidad", "criticality", "crit"],
+  sucursalPropietaria: ["sucursalpropietaria", "sucursal propietaria"],
+  tipoTraslado: ["tipotraslado", "tipo traslado"],
+  fechaRetornoPrevista: ["fecharetornoprevista", "fecha retorno prevista"],
 };
 
 function normalizeKey(key: string) {
@@ -114,6 +134,9 @@ export function parseAssetsResponse(data: unknown): Asset[] {
       modelo: readAssetField(asset, "modelo"),
       estado: readAssetField(asset, "estado"),
       criticidad: readAssetField(asset, "criticidad"),
+      sucursalPropietaria: readAssetField(asset, "sucursalPropietaria") || readAssetField(asset, "sucursal"),
+      tipoTraslado: readAssetField(asset, "tipoTraslado"),
+      fechaRetornoPrevista: readAssetField(asset, "fechaRetornoPrevista"),
     }));
 }
 
@@ -185,6 +208,7 @@ async function postAssetAction(payload: Record<string, unknown>) {
   const data = (await response.json().catch(() => ({}))) as {
     ok?: boolean;
     error?: string;
+    codigo?: string;
   };
   if (!response.ok || !data.ok)
     throw new Error(data.error || "No se pudo guardar el activo.");
@@ -197,6 +221,10 @@ export function createAsset(input: AssetMutationInput) {
 
 export function updateAsset(input: AssetMutationInput) {
   return postAssetAction({ accion: "actualizarActivo", ...input });
+}
+
+export function transferAsset(input: AssetTransferInput) {
+  return postAssetAction({ accion: "trasladarActivo", ...input });
 }
 
 export async function fetchAssetMovements(codigoActivo: string) {
@@ -227,5 +255,8 @@ export async function fetchAssetMovements(codigoActivo: string) {
     estadoNuevo: field(row, "EstadoNuevo"),
     motivo: field(row, "Motivo"),
     responsable: field(row, "Responsable"),
+    tipoMovimiento: field(row, "TipoMovimiento"),
+    fechaRetornoPrevista: field(row, "FechaRetornoPrevista"),
+    sucursalPropietaria: field(row, "SucursalPropietaria"),
   }));
 }

@@ -11,6 +11,7 @@ import {
   Package,
   ShieldCheck,
   Users,
+  Building2,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,12 @@ const navigation: {
     icon: Package,
     href: "/inventario",
     permission: "inventario:read",
+  },
+  {
+    label: "Sucursales",
+    icon: Building2,
+    href: "/sucursales",
+    permission: "sucursales:read",
   },
   {
     label: "Usuarios",

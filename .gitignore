@@ -12,3 +12,4 @@ coverage
 # next-pwa generated assets
 apps/web/public/sw.js
 apps/web/public/workbox-*.js
+.npm-cache/

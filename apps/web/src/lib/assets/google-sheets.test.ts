@@ -3,6 +3,7 @@ import {
   createAsset,
   matchesAssetSearch,
   parseAssetsResponse,
+  transferAsset,
   updateAsset,
   validateAsset,
   type AssetMutationInput,
@@ -71,5 +72,29 @@ describe("asset management", () => {
     await updateAsset({ ...asset, estado: "Baja", motivo: "Retiro definitivo" });
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ accion: "crearActivo", codigo: "ACT-001" });
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ accion: "actualizarActivo", estado: "Baja" });
+  });
+
+  it("sends a temporary transfer with destination and return date", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await transferAsset({
+      codigo: "ACT-001",
+      tipoTraslado: "Temporal",
+      sucursalDestino: "Norte",
+      areaDestino: "Producción",
+      ubicacionDestino: "Línea 2",
+      fechaRetornoPrevista: "2026-08-01",
+      motivo: "Apoyo de producción",
+      responsable: "admin@gla.test",
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      accion: "trasladarActivo",
+      tipoTraslado: "Temporal",
+      sucursalDestino: "Norte",
+      fechaRetornoPrevista: "2026-08-01",
+    });
   });
 });

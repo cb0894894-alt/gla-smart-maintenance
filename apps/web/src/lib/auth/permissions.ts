@@ -22,6 +22,8 @@ export const PERMISSIONS = [
   "indicadores:read",
   "usuarios:read",
   "usuarios:write",
+  "sucursales:read",
+  "sucursales:write",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -60,6 +62,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 export const ROUTE_ACCESS: Record<string, Role[]> = {
   "/": ["Administrador", "Supervisor", "Técnico", "Consulta"],
   "/usuarios": ["Administrador"],
+  "/sucursales": ["Administrador"],
   "/indicadores": ["Administrador", "Supervisor"],
   "/inventario": ["Administrador", "Supervisor"],
   "/activos": ["Administrador", "Supervisor", "Técnico", "Consulta"],
@@ -77,6 +80,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/mantenimiento-preventivo": "preventivos:read",
   "/inventario": "inventario:read",
   "/usuarios": "usuarios:read",
+  "/sucursales": "sucursales:read",
   "/historial": "historial:read",
   "/indicadores": "indicadores:read",
 };
@@ -86,11 +90,16 @@ export const API_ACTION_PERMISSIONS: Record<string, Permission> = {
   movimientosActivos: "activos:read",
   crearActivo: "activos:write",
   actualizarActivo: "activos:write",
+  trasladarActivo: "activos:write",
   componentesActivos: "activos:read",
   crearComponenteActivo: "activos:write",
   convertirActivoEnComponente: "activos:write",
   usuarios: "usuarios:read",
   crearUsuario: "usuarios:write",
+  sucursales: "sucursales:read",
+  areas: "sucursales:read",
+  guardarSucursal: "sucursales:write",
+  guardarArea: "sucursales:write",
   indicadores: "indicadores:read",
   inventario: "inventario:read",
   historial: "historial:read",

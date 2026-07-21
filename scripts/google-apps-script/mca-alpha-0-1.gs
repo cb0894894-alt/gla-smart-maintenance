@@ -29,6 +29,8 @@ const SHEET_INVENTORY = "INV_Refacciones";
 const SHEET_HISTORY = "MNT_Historial";
 const SHEET_INDICATORS = "KPI_Indicadores";
 const SHEET_USERS = "CFG_Usuarios";
+const SHEET_BRANCHES = "CFG_Sucursales";
+const SHEET_AREAS = "CFG_Areas";
 const SHEET_ASSET_MOVEMENTS = "ACT_Movimientos";
 const SHEET_ASSET_COMPONENTS = "ACT_Componentes";
 const OPERATIONAL_TIME_ZONE = "America/Mazatlan";
@@ -122,14 +124,18 @@ const USER_HEADERS = [
 ];
 const USER_ROLES = ["Administrador", "Supervisor", "Técnico", "Consulta"];
 const USER_STATUSES = ["Activo", "Inactivo"];
+const BRANCH_HEADERS = ["IdSucursal","Codigo","Nombre","Direccion","Ciudad","EstadoRegion","Responsable","Telefono","Estado","FechaCreacion","FechaActualizacion"];
+const AREA_HEADERS = ["IdArea","IdSucursal","Nombre","Estado","FechaCreacion","FechaActualizacion"];
 const ASSET_HEADERS = [
   "Código", "Nombre", "Tipo", "Sucursal", "Área", "Ubicación", "Marca", "Modelo",
-  "Estado", "Criticidad", "FechaCreación", "FechaActualización"
+  "Estado", "Criticidad", "FechaCreación", "FechaActualización", "SucursalPropietaria",
+  "TipoTraslado", "FechaRetornoPrevista"
 ];
 const ASSET_MOVEMENT_HEADERS = [
   "IdMovimiento", "CodigoActivo", "Fecha", "SucursalAnterior", "SucursalNueva",
   "AreaAnterior", "AreaNueva", "UbicacionAnterior", "UbicacionNueva",
-  "EstadoAnterior", "EstadoNuevo", "Motivo", "Responsable"
+  "EstadoAnterior", "EstadoNuevo", "Motivo", "Responsable", "TipoMovimiento",
+  "FechaRetornoPrevista", "SucursalPropietaria", "ComponentesIncluidos"
 ];
 const ASSET_COMPONENT_HEADERS = [
   "IdComponente", "CodigoActivo", "CodigoComponente", "Nombre", "Tipo", "Marca",
@@ -177,6 +183,8 @@ function doGet(e) {
   if (accion === "usuarios") {
     return jsonResponse(readSheetAsObjects_(SHEET_USERS));
   }
+  if (accion === "sucursales") return jsonResponse(readConfigSheet_(SHEET_BRANCHES, BRANCH_HEADERS));
+  if (accion === "areas") return jsonResponse(readConfigSheet_(SHEET_AREAS, AREA_HEADERS));
 
   return jsonResponse({ ok: false, error: "Accion no soportada." });
 }
@@ -212,6 +220,8 @@ function doPost(e) {
     if (payload.accion === "actualizarUsuario") {
       return jsonResponse(updateUser_(payload));
     }
+    if (payload.accion === "guardarSucursal") return jsonResponse(saveConfigRecord_(SHEET_BRANCHES, BRANCH_HEADERS, "IdSucursal", "SUC-", payload));
+    if (payload.accion === "guardarArea") return jsonResponse(saveConfigRecord_(SHEET_AREAS, AREA_HEADERS, "IdArea", "ARE-", payload));
 
     if (payload.accion === "crearActivo") {
       return jsonResponse(createAsset_(payload));
@@ -219,6 +229,10 @@ function doPost(e) {
 
     if (payload.accion === "actualizarActivo") {
       return jsonResponse(updateAsset_(payload));
+    }
+
+    if (payload.accion === "trasladarActivo") {
+      return jsonResponse(transferAsset_(payload));
     }
 
     if (payload.accion === "crearComponenteActivo") {
@@ -402,7 +416,8 @@ function createAsset_(payload) {
     id: payload.codigo, codigo: payload.codigo, nombre: payload.nombre, tipo: payload.tipo,
     sucursal: payload.sucursal, area: payload.area, ubicacion: payload.ubicacion,
     marca: payload.marca || "", modelo: payload.modelo || "", estado: payload.estado, criticidad: payload.criticidad,
-    fechacreacion: now, fechaactualizacion: now
+    fechacreacion: now, fechaactualizacion: now, sucursalpropietaria: payload.sucursal,
+    tipotraslado: "", fecharetornoprevista: ""
   };
   sheet.appendRow(headers.map(function (header) {
     const key = normalizeAssetHeader_(header).replace(/\s/g, "");
@@ -439,6 +454,80 @@ function updateAsset_(payload) {
   return { ok: true, codigo: payload.codigo };
 }
 
+function transferAsset_(payload) {
+  validateRequired_(payload, ["codigo", "tipoTraslado", "sucursalDestino", "areaDestino", "ubicacionDestino", "motivo", "responsable"]);
+  const allowedTypes = ["Temporal", "Definitivo", "Retorno"];
+  if (allowedTypes.indexOf(String(payload.tipoTraslado)) === -1)
+    throw new Error("Tipo de traslado no permitido.");
+  if (payload.tipoTraslado === "Temporal" && !payload.fechaRetornoPrevista)
+    throw new Error("El traslado temporal requiere fecha prevista de retorno.");
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sheet = getSheet_(SHEET_ACTIVOS);
+    const headers = ensureAssetHeaders_(sheet);
+    const rowNumber = findAssetRow_(sheet, headers, payload.codigo);
+    if (rowNumber === -1) throw new Error("No existe el activo " + payload.codigo);
+    const previousRow = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
+    const previous = {
+      sucursal: assetValue_(previousRow, headers, "Sucursal"),
+      area: assetValue_(previousRow, headers, "Área"),
+      ubicacion: assetValue_(previousRow, headers, "Ubicación"),
+      estado: assetValue_(previousRow, headers, "Estado")
+    };
+    const currentOwner = String(assetValue_(previousRow, headers, "SucursalPropietaria") || previous.sucursal).trim();
+    const currentTransferType = String(assetValue_(previousRow, headers, "TipoTraslado") || "").trim();
+    if (String(payload.sucursalDestino).trim() === String(previous.sucursal).trim())
+      throw new Error("La sucursal destino debe ser diferente de la ubicación actual.");
+    if (payload.tipoTraslado === "Retorno" && currentTransferType !== "Temporal")
+      throw new Error("El equipo no tiene un traslado temporal activo.");
+    if (payload.tipoTraslado === "Retorno" && String(payload.sucursalDestino).trim() !== currentOwner)
+      throw new Error("El retorno debe dirigirse a la sucursal propietaria.");
+
+    const owner = payload.tipoTraslado === "Definitivo" ? String(payload.sucursalDestino).trim() : currentOwner;
+    const resultingType = payload.tipoTraslado === "Temporal" ? "Temporal" : "";
+    const returnDate = payload.tipoTraslado === "Temporal" ? String(payload.fechaRetornoPrevista).trim() : "";
+    const componentCodes = assetComponentCodes_(payload.codigo);
+    try {
+      setAssetValue_(sheet, rowNumber, headers, "Sucursal", String(payload.sucursalDestino).trim());
+      setAssetValue_(sheet, rowNumber, headers, "Área", String(payload.areaDestino).trim());
+      setAssetValue_(sheet, rowNumber, headers, "Ubicación", String(payload.ubicacionDestino).trim());
+      setAssetValue_(sheet, rowNumber, headers, "SucursalPropietaria", owner);
+      setAssetValue_(sheet, rowNumber, headers, "TipoTraslado", resultingType);
+      setAssetValue_(sheet, rowNumber, headers, "FechaRetornoPrevista", returnDate);
+      setAssetValue_(sheet, rowNumber, headers, "FechaActualización", new Date());
+      appendAssetMovement_(payload.codigo, new Date(), previous, {
+        sucursal: String(payload.sucursalDestino).trim(), area: String(payload.areaDestino).trim(),
+        ubicacion: String(payload.ubicacionDestino).trim(), estado: previous.estado,
+        motivo: payload.motivo, responsable: payload.responsable,
+        tipoMovimiento: payload.tipoTraslado === "Retorno" ? "Retorno de traslado temporal" : "Traslado " + String(payload.tipoTraslado).toLowerCase(),
+        fechaRetornoPrevista: returnDate, sucursalPropietaria: owner,
+        componentesIncluidos: componentCodes.join(", ")
+      });
+    } catch (error) {
+      sheet.getRange(rowNumber, 1, 1, headers.length).setValues([previousRow]);
+      throw error;
+    }
+    return { ok: true, codigo: payload.codigo, tipoTraslado: payload.tipoTraslado, componentesIncluidos: componentCodes.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function assetComponentCodes_(codigoActivo) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_ASSET_COMPONENTS);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const headers = ensureFlexibleHeaders_(sheet, ASSET_COMPONENT_HEADERS);
+  const normalized = headers.map(normalizeAssetHeader_);
+  const parentIndex = normalized.indexOf(normalizeAssetHeader_("CodigoActivo"));
+  const codeIndex = normalized.indexOf(normalizeAssetHeader_("CodigoComponente"));
+  if (parentIndex === -1 || codeIndex === -1) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues().filter(function (row) {
+    return String(row[parentIndex]).trim() === String(codigoActivo).trim();
+  }).map(function (row) { return String(row[codeIndex]).trim(); }).filter(Boolean);
+}
+
 function nextAssetCode_(sheet, headers, sucursal, tipo) {
   const branch = String(sucursal || "GEN").normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]/g, "")
@@ -466,13 +555,23 @@ function nextAssetCode_(sheet, headers, sucursal, tipo) {
 function appendAssetMovement_(codigo, date, previous, current) {
   let sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_ASSET_MOVEMENTS);
   if (!sheet) sheet = SpreadsheetApp.getActive().insertSheet(SHEET_ASSET_MOVEMENTS);
-  ensureHeaders_(sheet, ASSET_MOVEMENT_HEADERS, SHEET_ASSET_MOVEMENTS);
-  sheet.appendRow([
-    "MOV-" + Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyyMMddHHmmss"), codigo, date,
-    previous.sucursal || "", current.sucursal || "", previous.area || "", current.area || "",
-    previous.ubicacion || "", current.ubicacion || "", previous.estado || "", current.estado || "",
-    current.motivo || "Alta inicial", current.responsable || ""
-  ]);
+  const headers = ensureFlexibleHeaders_(sheet, ASSET_MOVEMENT_HEADERS);
+  const values = {
+    idmovimiento: "MOV-" + Utilities.getUuid(), codigoactivo: codigo, fecha: date,
+    sucursalanterior: previous.sucursal || "", sucursalnueva: current.sucursal || "",
+    areaanterior: previous.area || "", areanueva: current.area || "",
+    ubicacionanterior: previous.ubicacion || "", ubicacionnueva: current.ubicacion || "",
+    estadoanterior: previous.estado || "", estadonuevo: current.estado || "",
+    motivo: current.motivo || "Alta inicial", responsable: current.responsable || "",
+    tipomovimiento: current.tipoMovimiento || "Actualización",
+    fecharetornoprevista: current.fechaRetornoPrevista || "",
+    sucursalpropietaria: current.sucursalPropietaria || current.sucursal || "",
+    componentesincluidos: current.componentesIncluidos || ""
+  };
+  sheet.appendRow(headers.map(function (header) {
+    const key = normalizeAssetHeader_(header).replace(/\s/g, "");
+    return values[key] === undefined ? "" : values[key];
+  }));
 }
 
 function createWorkOrder_(payload) {
@@ -1068,6 +1167,77 @@ function writeOptionalColumn_(sheet, headers, rowNumber, header, value) {
     headers.push(header);
   }
   sheet.getRange(rowNumber, columnIndex + 1).setValue(value);
+}
+
+function readConfigSheet_(sheetName, expectedHeaders) {
+  let sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
+  if (!sheet) sheet = SpreadsheetApp.getActive().insertSheet(sheetName);
+  ensureHeaders_(sheet, expectedHeaders, sheetName);
+  return readSheetAsObjects_(sheetName);
+}
+
+function saveConfigRecord_(sheetName, expectedHeaders, idHeader, prefix, payload) {
+  validateRequired_(payload, sheetName === SHEET_BRANCHES ? ["nombre"] : ["idSucursal", "nombre"]);
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    let sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
+    if (!sheet) sheet = SpreadsheetApp.getActive().insertSheet(sheetName);
+    ensureHeaders_(sheet, expectedHeaders, sheetName);
+    const values = sheet.getDataRange().getValues();
+    const headers = values[0].map(String);
+    const idKey = idHeader.charAt(0).toLowerCase() + idHeader.slice(1);
+    let id = String(payload[idKey] || "").trim();
+    let rowNumber = -1;
+    if (id) {
+      const idIndex = headers.indexOf(idHeader);
+      const found = values.findIndex(function(row,index){ return index > 0 && String(row[idIndex]).trim() === id; });
+      if (found !== -1) rowNumber = found + 1;
+    } else id = prefix + Utilities.getUuid().slice(0,8).toUpperCase();
+    if (sheetName === SHEET_BRANCHES && rowNumber === -1 && !String(payload.codigo || "").trim()) {
+      payload.codigo = nextSequentialConfigCode_(values, headers, "Codigo", branchCodePrefix_(payload.nombre));
+    }
+    if (sheetName === SHEET_AREAS) {
+      const branchIndex = headers.indexOf("IdSucursal");
+      const nameIndex = headers.indexOf("Nombre");
+      const duplicate = values.findIndex(function(row, index) {
+        return index > 0 && index + 1 !== rowNumber &&
+          String(row[branchIndex] || "").trim() === String(payload.idSucursal || "").trim() &&
+          String(row[nameIndex] || "").trim().toLowerCase() === String(payload.nombre || "").trim().toLowerCase();
+      });
+      if (duplicate !== -1) throw new Error("El área ya existe en esta sucursal.");
+    }
+    const now = new Date();
+    const record = headers.map(function(header){
+      if (header === idHeader) return id;
+      if (header === "FechaCreacion") return rowNumber === -1 ? now : values[rowNumber - 1][headers.indexOf(header)];
+      if (header === "FechaActualizacion") return now;
+      const key = header.charAt(0).toLowerCase() + header.slice(1);
+      return typeof payload[key] === "undefined" ? (rowNumber === -1 ? "" : values[rowNumber - 1][headers.indexOf(header)]) : payload[key];
+    });
+    if (rowNumber === -1) sheet.appendRow(record); else sheet.getRange(rowNumber,1,1,headers.length).setValues([record]);
+    return { ok:true, id:id };
+  } finally { lock.releaseLock(); }
+}
+
+function branchCodePrefix_(name) {
+  const normalized = String(name || "SUCURSAL")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return (normalized || "SUCURSAL") + "-";
+}
+
+function nextSequentialConfigCode_(values, headers, codeHeader, prefix) {
+  const codeIndex = headers.indexOf(codeHeader);
+  if (codeIndex === -1) throw new Error("No existe la columna " + codeHeader);
+  const pattern = new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(\\d+)$", "i");
+  const maximum = values.slice(1).reduce(function(current, row) {
+    const match = String(row[codeIndex] || "").trim().match(pattern);
+    return match ? Math.max(current, Number(match[1])) : current;
+  }, 0);
+  return prefix + String(maximum + 1).padStart(3, "0");
 }
 
 function nextWorkOrderFolio_(sheet) {
