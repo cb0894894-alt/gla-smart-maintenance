@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "./page";
 
 const originalApiUrl = process.env.NEXT_PUBLIC_API_URL;
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() + 1);
+const upcomingPreventiveDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
 
 const responses: Record<string, unknown[]> = {
   activos: [
@@ -26,7 +29,7 @@ const responses: Record<string, unknown[]> = {
       tarea: "Lubricar",
       responsable: "Mantenimiento",
       estado: "Activo",
-      proximaEjecucion: "2026-07-20",
+      proximaEjecucion: upcomingPreventiveDate,
     },
   ],
   inventario: [

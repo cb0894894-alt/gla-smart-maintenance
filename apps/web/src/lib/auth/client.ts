@@ -24,6 +24,11 @@ export function useSession() {
         const data = await response.json().catch(() => ({}));
         if (!active) return;
         if (!response.ok) {
+          if (response.status === 401 && window.location.pathname !== "/login") {
+            const next = `${window.location.pathname}${window.location.search}`;
+            window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+            return;
+          }
           setState({ user: null, permissions: [], loading: false, error: data.error ?? "No se encontró una sesión activa." });
           return;
         }

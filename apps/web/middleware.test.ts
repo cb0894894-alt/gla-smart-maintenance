@@ -56,6 +56,15 @@ async function expectBlocked(role: Role, pathname: string) {
 }
 
 describe("middleware authorization with signed session cookies", () => {
+  it("redirects the initial page to login when there is no session", async () => {
+    process.env.AUTH_SECRET = "test-secret-for-middleware";
+    const response = await middleware(new NextRequest("https://gla.test/"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://gla.test/login?next=%2F",
+    );
+  });
+
   it("blocks Técnico from /usuarios, /indicadores and /inventario before rendering, but allows /activos", async () => {
     await expectBlocked("Técnico", "/usuarios");
     await expectBlocked("Técnico", "/indicadores");

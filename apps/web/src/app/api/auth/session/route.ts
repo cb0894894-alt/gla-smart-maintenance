@@ -7,7 +7,7 @@ export async function GET() {
   if (!session)
     return NextResponse.json(
       { user: null, permissions: [], error: "Acceso denegado." },
-      { status: 403 },
+      { status: 401 },
     );
   const role = normalizeRole(session.user.role);
   if (!role)
@@ -17,7 +17,7 @@ export async function GET() {
         permissions: [],
         error: "El rol de la sesión no es válido.",
       },
-      { status: 401 },
+      { status: 403 },
     );
   const user = { ...session.user, role };
   return NextResponse.json({ user, permissions: getPermissions(role) });
