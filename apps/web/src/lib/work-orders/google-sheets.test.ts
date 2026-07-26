@@ -3,6 +3,7 @@ import {
   buildCloseWorkOrderPayload,
   calculateCloseWorkOrderTotal,
   closeWorkOrder,
+  getOpenWorkOrdersForAsset,
   filterWorkOrders,
   getWorkOrderIndicators,
   parseWorkOrdersResponse,
@@ -91,6 +92,14 @@ describe("work orders Google Sheets helpers", () => {
         area: "Servicios",
       })[0].folio,
     ).toBe("OT-20260714-0002");
+    expect(
+      filterWorkOrders(orders, {
+        search: "A-2",
+        estado: "",
+        prioridad: "",
+        area: "",
+      })[0].folio,
+    ).toBe("OT-20260714-0002");
   });
   it("shows the newest work orders first without changing the source list", () => {
     const source = [orders[0], orders[1]];
@@ -112,6 +121,16 @@ describe("work orders Google Sheets helpers", () => {
         area: "",
       }).map((order) => order.folio),
     ).toEqual(["OT-20260714-0002", "OT-20260713-0001"]);
+  });
+  it("returns only pending work orders for the scanned asset", () => {
+    const closedOrder = { ...orders[0], estado: "Cerrada" };
+
+    expect(
+      getOpenWorkOrdersForAsset(
+        [orders[0], orders[1], closedOrder],
+        "A-1",
+      ).map((order) => order.folio),
+    ).toEqual(["OT-20260713-0001"]);
   });
   it("computes indicators", () => {
     expect(getWorkOrderIndicators(orders)).toEqual({
