@@ -260,7 +260,7 @@ function AssetQrLabel({ asset, onClose }: { asset: Asset; onClose: () => void })
   const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";
   const runtimeBaseUrl = typeof window === "undefined" ? "" : window.location.origin;
   const qrBaseUrl = configuredBaseUrl || runtimeBaseUrl;
-  const assetUrl = `${qrBaseUrl}/activos?buscar=${encodeURIComponent(asset.codigo)}`;
+  const assetUrl = `${qrBaseUrl}/reportar-falla?activo=${encodeURIComponent(asset.codigo)}`;
   const isLocalAddress = !configuredBaseUrl && typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname);
   useEffect(() => {
     if (isLocalAddress) {

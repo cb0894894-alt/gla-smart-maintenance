@@ -32,6 +32,7 @@ describe("FailureReportPage", () => {
   });
 
   afterEach(() => {
+    window.history.replaceState({}, "", "/");
     process.env.NEXT_PUBLIC_API_URL = originalApiUrl;
     vi.unstubAllGlobals();
     vi.clearAllMocks();
@@ -51,6 +52,16 @@ describe("FailureReportPage", () => {
       expect(
         screen.queryByText("Inicializando fecha y hora..."),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  it("preselects the asset received from a QR link", async () => {
+    window.history.replaceState({}, "", "/reportar-falla?activo=BOM-01");
+
+    render(<FailureReportPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Activo/)).toHaveValue("BOM-01");
     });
   });
 
