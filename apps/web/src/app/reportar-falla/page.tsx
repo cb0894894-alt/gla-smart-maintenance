@@ -56,6 +56,21 @@ export default function FailureReportPage() {
       .then((loadedAssets) => {
         setAssets(loadedAssets);
         setAssetError(null);
+        const requestedAssetCode = new URLSearchParams(
+          window.location.search,
+        ).get("activo");
+        const requestedAsset = loadedAssets.find(
+          (asset) => asset.codigo === requestedAssetCode,
+        );
+        if (requestedAsset) {
+          setForm((current) => ({
+            ...current,
+            assetCode: requestedAsset.codigo,
+            assetName: requestedAsset.nombre,
+            assetArea: requestedAsset.area,
+            assetCriticality: requestedAsset.criticidad,
+          }));
+        }
       })
       .catch((error: unknown) => {
         console.error("Unable to load assets from Google Sheets.", error);
