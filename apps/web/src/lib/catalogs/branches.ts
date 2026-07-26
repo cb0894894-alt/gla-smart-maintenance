@@ -46,3 +46,5 @@ export async function fetchAreas(): Promise<Area[]> {
 }
 export async function saveBranch(input: Partial<Branch>) { return request("guardarSucursal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "guardarSucursal", ...input }) }); }
 export async function saveArea(input: Partial<Area>) { return request("guardarArea", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "guardarArea", ...input }) }); }
+export async function changeBranchStatus(idSucursal: string, estado: "Activo" | "Inactivo") { return request("cambiarEstadoSucursal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "cambiarEstadoSucursal", idSucursal, estado }) }); }
+export async function changeAreaStatus(idArea: string, estado: "Activo" | "Inactivo") { return request("cambiarEstadoArea", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "cambiarEstadoArea", idArea, estado }) }); }
