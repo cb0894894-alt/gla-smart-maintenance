@@ -6,6 +6,7 @@ import {
   filterWorkOrders,
   getWorkOrderIndicators,
   parseWorkOrdersResponse,
+  sortWorkOrdersNewestFirst,
   updateWorkOrderStatus,
   validateCloseWorkOrder,
   validateStatusUpdate,
@@ -90,6 +91,27 @@ describe("work orders Google Sheets helpers", () => {
         area: "Servicios",
       })[0].folio,
     ).toBe("OT-20260714-0002");
+  });
+  it("shows the newest work orders first without changing the source list", () => {
+    const source = [orders[0], orders[1]];
+
+    expect(sortWorkOrdersNewestFirst(source).map((order) => order.folio)).toEqual(
+      ["OT-20260714-0002", "OT-20260713-0001"],
+    );
+    expect(source.map((order) => order.folio)).toEqual([
+      "OT-20260713-0001",
+      "OT-20260714-0002",
+    ]);
+  });
+  it("keeps filtered results ordered from newest to oldest", () => {
+    expect(
+      filterWorkOrders(orders, {
+        search: "",
+        estado: "",
+        prioridad: "",
+        area: "",
+      }).map((order) => order.folio),
+    ).toEqual(["OT-20260714-0002", "OT-20260713-0001"]);
   });
   it("computes indicators", () => {
     expect(getWorkOrderIndicators(orders)).toEqual({

@@ -217,19 +217,33 @@ export function filterWorkOrders(
   filters: WorkOrderFilters,
 ) {
   const query = filters.search.trim().toLowerCase();
-  return orders.filter((order) => {
-    const matchesSearch =
-      !query ||
-      [order.folio, order.activo, order.reporta].some((value) =>
-        value.toLowerCase().includes(query),
+  return sortWorkOrdersNewestFirst(
+    orders.filter((order) => {
+      const matchesSearch =
+        !query ||
+        [order.folio, order.activo, order.reporta].some((value) =>
+          value.toLowerCase().includes(query),
+        );
+      return (
+        matchesSearch &&
+        (!filters.estado || order.estado === filters.estado) &&
+        (!filters.prioridad || order.prioridad === filters.prioridad) &&
+        (!filters.area || order.area === filters.area)
       );
-    return (
-      matchesSearch &&
-      (!filters.estado || order.estado === filters.estado) &&
-      (!filters.prioridad || order.prioridad === filters.prioridad) &&
-      (!filters.area || order.area === filters.area)
-    );
+    }),
+  );
+}
+export function sortWorkOrdersNewestFirst(orders: WorkOrder[]) {
+  return [...orders].sort((left, right) => {
+    const dateDifference =
+      getWorkOrderTimestamp(right) - getWorkOrderTimestamp(left);
+    if (dateDifference) return dateDifference;
+    return right.folio.localeCompare(left.folio, "es", { numeric: true });
   });
+}
+function getWorkOrderTimestamp(order: WorkOrder) {
+  const timestamp = Date.parse(order.fechaHoraReporte);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 export function getWorkOrderIndicators(orders: WorkOrder[]) {
   return {
