@@ -221,7 +221,7 @@ export function filterWorkOrders(
     orders.filter((order) => {
       const matchesSearch =
         !query ||
-        [order.folio, order.activo, order.reporta].some((value) =>
+        [order.folio, order.codigoActivo, order.activo, order.reporta].some((value) =>
           value.toLowerCase().includes(query),
         );
       return (
@@ -253,6 +253,20 @@ export function getWorkOrderIndicators(orders: WorkOrder[]) {
     cerradas: orders.filter((o) => o.estado === "Cerrada").length,
     prioridadCritica: orders.filter((o) => o.prioridad === "Crítica").length,
   };
+}
+
+export function getOpenWorkOrdersForAsset(
+  orders: WorkOrder[],
+  assetCode: string,
+) {
+  const closedStatuses = new Set(["cerrada", "cancelada"]);
+  return sortWorkOrdersNewestFirst(
+    orders.filter(
+      (order) =>
+        order.codigoActivo === assetCode &&
+        !closedStatuses.has(order.estado.trim().toLowerCase()),
+    ),
+  );
 }
 
 export function calculateCloseWorkOrderTotal(

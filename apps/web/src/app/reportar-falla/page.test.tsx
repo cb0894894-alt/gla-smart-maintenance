@@ -18,16 +18,23 @@ const assets = [
 ];
 const mocks = vi.hoisted(() => ({
   fetchAssets: vi.fn(),
+  fetchWorkOrders: vi.fn(),
 }));
 
 vi.mock("@/lib/assets/google-sheets", () => ({
   fetchAssets: mocks.fetchAssets,
 }));
+vi.mock("@/lib/work-orders/google-sheets", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/lib/work-orders/google-sheets")>();
+  return { ...original, fetchWorkOrders: mocks.fetchWorkOrders };
+});
 
 describe("FailureReportPage", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_API_URL = "http://localhost:3000/api/google-sheets";
     mocks.fetchAssets.mockResolvedValue(assets);
+    mocks.fetchWorkOrders.mockResolvedValue([]);
     vi.stubGlobal("fetch", vi.fn());
   });
 
@@ -63,6 +70,37 @@ describe("FailureReportPage", () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/Activo/)).toHaveValue("BOM-01");
     });
+  });
+
+  it("offers the open orders for the asset received from a QR link", async () => {
+    window.history.replaceState({}, "", "/reportar-falla?activo=BOM-01");
+    mocks.fetchWorkOrders.mockResolvedValue([
+      {
+        folio: "OT-20260726-0001",
+        fechaHoraReporte: "2026-07-26T08:00:00.000Z",
+        codigoActivo: "BOM-01",
+        activo: "Bomba principal",
+        area: "Producción",
+        criticidad: "Alta",
+        reporta: "Ana",
+        descripcionFalla: "Vibración",
+        prioridad: "Alta",
+        condicionEquipo: "Operando",
+        observaciones: "",
+        estado: "Abierta",
+        origen: "QR",
+      },
+    ]);
+
+    render(<FailureReportPage />);
+
+    const link = await screen.findByRole("link", {
+      name: /Revisar o cerrar orden/,
+    });
+    expect(link).toHaveAttribute(
+      "href",
+      "/ordenes-trabajo?activo=BOM-01&cerrar=OT-20260726-0001",
+    );
   });
 
   it("shows clear validation messages for required fields", async () => {

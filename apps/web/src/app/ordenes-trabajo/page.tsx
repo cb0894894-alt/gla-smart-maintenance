@@ -60,6 +60,23 @@ export default function WorkOrdersPage() {
     void loadOrders();
   }, []);
   useEffect(() => {
+    if (!orders.length) return;
+    const parameters = new URLSearchParams(window.location.search);
+    const assetCode = parameters.get("activo");
+    const closeFolio = parameters.get("cerrar");
+    if (assetCode) setSearch(assetCode);
+    if (closeFolio) {
+      const requestedOrder = orders.find(
+        (order) =>
+          order.folio === closeFolio &&
+          (!assetCode || order.codigoActivo === assetCode),
+      );
+      if (requestedOrder && requestedOrder.estado !== "Cerrada") {
+        setCloseOrder(requestedOrder);
+      }
+    }
+  }, [orders]);
+  useEffect(() => {
     setPage(1);
   }, [search, estado, prioridad, area]);
   useEffect(() => {

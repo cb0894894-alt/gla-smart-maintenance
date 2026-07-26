@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ClipboardPlus, Loader2 } from "lucide-react";
+import { AlertCircle, ClipboardList, ClipboardPlus, Loader2 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,12 +10,15 @@ import { fetchAssets, type Asset } from "@/lib/assets/google-sheets";
 import {
   createWorkOrderFromFailure,
   EQUIPMENT_CONDITIONS,
+  fetchWorkOrders,
   getAssetLabel,
+  getOpenWorkOrdersForAsset,
   validateFailureReport,
   WORK_ORDER_PRIORITIES,
   type EquipmentCondition,
   type FailureReportInput,
   type WorkOrderPriority,
+  type WorkOrder,
 } from "@/lib/work-orders/google-sheets";
 
 const initialForm: FailureReportInput = {
@@ -42,6 +45,8 @@ export default function FailureReportPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [folio, setFolio] = useState<string | null>(null);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
 
   useEffect(() => {
     setForm((current) =>
@@ -85,6 +90,22 @@ export default function FailureReportPage() {
     () => assets.find((asset) => asset.codigo === form.assetCode),
     [assets, form.assetCode],
   );
+  const openOrders = useMemo(
+    () => getOpenWorkOrdersForAsset(orders, form.assetCode),
+    [orders, form.assetCode],
+  );
+
+  useEffect(() => {
+    fetchWorkOrders()
+      .then((loadedOrders) => {
+        setOrders(loadedOrders);
+        setOrdersError(null);
+      })
+      .catch((error: unknown) => {
+        console.error("Unable to load work orders.", error);
+        setOrdersError("No se pudieron consultar las órdenes pendientes.");
+      });
+  }, []);
 
   function updateAsset(assetCode: string) {
     const asset = assets.find((item) => item.codigo === assetCode);
@@ -153,6 +174,41 @@ export default function FailureReportPage() {
             <CardTitle>Nueva falla reportada</CardTitle>
           </CardHeader>
           <CardContent>
+            {form.assetCode && openOrders.length > 0 ? (
+              <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4">
+                <div className="flex items-center gap-2 font-bold text-amber-100">
+                  <ClipboardList className="h-5 w-5" />
+                  Órdenes pendientes de este activo
+                </div>
+                <p className="mt-1 text-sm text-amber-100/80">
+                  Puedes continuar o cerrar una orden existente antes de crear
+                  otra.
+                </p>
+                <div className="mt-3 grid gap-2">
+                  {openOrders.map((order) => (
+                    <a
+                      key={order.folio}
+                      className="flex flex-col gap-1 rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-primary/60 sm:flex-row sm:items-center sm:justify-between"
+                      href={`/ordenes-trabajo?activo=${encodeURIComponent(form.assetCode)}&cerrar=${encodeURIComponent(order.folio)}`}
+                    >
+                      <span>
+                        <strong>{order.folio}</strong> · {order.estado}
+                      </span>
+                      <span className="font-semibold text-primary">
+                        Revisar o cerrar orden →
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {form.assetCode && !ordersError && openOrders.length === 0 ? (
+              <div className="mb-6 rounded-2xl border border-primary/25 bg-primary/10 p-4 text-sm">
+                Este activo no tiene órdenes pendientes. Puedes reportar una
+                falla nueva.
+              </div>
+            ) : null}
+            {ordersError ? <Message tone="error" text={ordersError} /> : null}
             {assetError ? <Message tone="error" text={assetError} /> : null}
             {folio ? (
               <Message
