@@ -22,7 +22,7 @@ function redirectToDeniedAndClearSession(request: NextRequest) {
 }
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
   if (
     PUBLIC_PATHS.some(
       (path) => pathname === path || pathname.startsWith(`${path}/`),
@@ -40,7 +40,10 @@ export async function middleware(request: NextRequest) {
   if (!session) {
     logAuthFailure("middleware", "missing_or_invalid_session_cookie");
     return NextResponse.redirect(
-      new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url),
+      new URL(
+        `/login?next=${encodeURIComponent(`${pathname}${search}`)}`,
+        request.url,
+      ),
     );
   }
 

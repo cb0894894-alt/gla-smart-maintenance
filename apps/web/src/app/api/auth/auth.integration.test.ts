@@ -9,12 +9,16 @@ import {
 } from "@/lib/auth/token";
 
 let sessionCookieForRequest: string | undefined;
+let oauthNextForRequest: string | undefined;
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({
     get: vi.fn((name: string) => {
       if (name === "gla_oauth_state") return { value: "state-ok" };
       if (name === "gla_oauth_nonce") return { value: "nonce-ok" };
+      if (name === "gla_oauth_next" && oauthNextForRequest) {
+        return { value: oauthNextForRequest };
+      }
       if (name === SESSION_COOKIE && sessionCookieForRequest) {
         return { value: sessionCookieForRequest };
       }
@@ -75,6 +79,7 @@ async function validTecnicoCookie() {
 describe("auth session integration", () => {
   beforeEach(() => {
     sessionCookieForRequest = undefined;
+    oauthNextForRequest = undefined;
     process.env.AUTH_SECRET = "test-secret-with-enough-entropy";
     process.env.GOOGLE_CLIENT_ID = "google-client";
     process.env.GOOGLE_CLIENT_SECRET = "google-secret";
@@ -118,6 +123,17 @@ describe("auth session integration", () => {
 
     expect(session?.user.email).toBe("tere@gla.test");
     expect(session?.user.role).toBe("Técnico");
+  });
+
+  it("callback restores the QR failure-report destination after login", async () => {
+    oauthNextForRequest = "/reportar-falla?activo=04-AS001";
+
+    const response = await callbackResponse();
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/reportar-falla?activo=04-AS001",
+    );
   });
 
   it("/api/auth/session returns Técnico and allowed permissions with the callback cookie", async () => {

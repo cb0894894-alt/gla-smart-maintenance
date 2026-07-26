@@ -38,8 +38,14 @@ export async function GET(request: NextRequest) {
   const store = await cookies();
   const expectedState = store.get("gla_oauth_state")?.value;
   const expectedNonce = store.get("gla_oauth_nonce")?.value;
+  const requestedNext = store.get("gla_oauth_next")?.value;
+  const nextPath =
+    requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
+      ? requestedNext
+      : null;
   store.delete("gla_oauth_state");
   store.delete("gla_oauth_nonce");
+  store.delete("gla_oauth_next");
   if (!code || !state || state !== expectedState) {
     logAuthCallbackFailure("oauth_state_mismatch_or_missing");
     return NextResponse.redirect(
@@ -101,7 +107,7 @@ export async function GET(request: NextRequest) {
     getAuthSecret(),
   );
   const response = NextResponse.redirect(
-    new URL(getDefaultPathForRole(cfgUser.rol), request.url),
+    new URL(nextPath || getDefaultPathForRole(cfgUser.rol), request.url),
   );
   response.cookies.set(
     SESSION_COOKIE,

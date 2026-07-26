@@ -65,6 +65,20 @@ describe("middleware authorization with signed session cookies", () => {
     );
   });
 
+  it("preserves the full QR destination when redirecting to login", async () => {
+    process.env.AUTH_SECRET = "test-secret-for-middleware";
+    const response = await middleware(
+      new NextRequest(
+        "https://gla.test/reportar-falla?activo=04-AS001",
+      ),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://gla.test/login?next=%2Freportar-falla%3Factivo%3D04-AS001",
+    );
+  });
+
   it("blocks Técnico from /usuarios, /indicadores and /inventario before rendering, but allows /activos", async () => {
     await expectBlocked("Técnico", "/usuarios");
     await expectBlocked("Técnico", "/indicadores");
