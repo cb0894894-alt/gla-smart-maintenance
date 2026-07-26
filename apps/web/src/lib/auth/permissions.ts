@@ -100,6 +100,8 @@ export const API_ACTION_PERMISSIONS: Record<string, Permission> = {
   areas: "sucursales:read",
   guardarSucursal: "sucursales:write",
   guardarArea: "sucursales:write",
+  cambiarEstadoSucursal: "sucursales:write",
+  cambiarEstadoArea: "sucursales:write",
   indicadores: "indicadores:read",
   inventario: "inventario:read",
   historial: "historial:read",
