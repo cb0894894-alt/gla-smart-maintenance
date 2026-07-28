@@ -14,7 +14,7 @@ import {
   type Asset, type AssetMovement, type AssetMutationInput, type AssetTransferInput,
 } from "@/lib/assets/google-sheets";
 import { convertAssetToComponent, createComponent, fetchComponents, validateComponent, type AssetComponent, type ComponentInput } from "@/lib/assets/components";
-import { fetchAreas, fetchBranches, type Area, type Branch } from "@/lib/catalogs/branches";
+import { fetchBranchCatalogs, type Area, type Branch } from "@/lib/catalogs/branches";
 
 const PAGE_SIZE = 25;
 const EMPTY_ASSET: AssetMutationInput = {
@@ -57,6 +57,7 @@ export default function AssetsPage() {
   const [catalogAreas, setCatalogAreas] = useState<Area[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [catalogWarning, setCatalogWarning] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sucursal, setSucursal] = useState("");
   const [area, setArea] = useState("");
@@ -92,10 +93,18 @@ export default function AssetsPage() {
 
   useEffect(() => { fetchComponents().then(setComponents).catch(() => setComponents([])); }, []);
   useEffect(() => {
-    Promise.all([fetchBranches(), fetchAreas()]).then(([loadedBranches, loadedAreas]) => {
+    fetchBranchCatalogs().then(({ branches: loadedBranches, areas: loadedAreas, failed }) => {
       setBranches(loadedBranches.filter((branch) => branch.estado !== "Inactiva"));
       setCatalogAreas(loadedAreas.filter((catalogArea) => catalogArea.estado !== "Inactiva"));
-    }).catch(() => setError("No se pudieron cargar las sucursales y áreas."));
+      if (failed.length) {
+        console.error(`Unable to load branch catalogs: ${failed.join(", ")}.`);
+        setCatalogWarning(`No se pudo actualizar el catálogo de ${failed.join(" y ")}. Los activos continúan disponibles.`);
+      } else {
+        setCatalogWarning(null);
+      }
+    }).catch(() => {
+      setCatalogWarning("No se pudieron actualizar los catálogos. Los activos continúan disponibles.");
+    });
   }, []);
 
   useEffect(() => {
@@ -205,6 +214,7 @@ export default function AssetsPage() {
             <Filter title="Criticidad" label="Toda criticidad" value={criticidad} options={uniqueOptions(assets, "criticidad")} onChange={setCriticidad} />
           </div>
           <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={showIntegrated} onChange={(event) => setShowIntegrated(event.target.checked)} className="h-4 w-4 accent-teal-400" />Mostrar activos ya integrados como componentes</label>
+          {catalogWarning ? <p role="status" className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">{catalogWarning}</p> : null}
           <div className="mt-6 max-w-full overflow-x-auto rounded-2xl border border-white/10">
             {isLoading ? <State title="Cargando activos" detail="Consultando Google Sheets..." /> : error ? <State title="Error al cargar" detail={error} error /> : filteredAssets.length === 0 ? <State title="Sin activos" detail="No hay registros para los filtros seleccionados." /> :
               <table className="w-full min-w-[1300px] text-left text-sm"><thead className="bg-slate-950/80 text-muted-foreground"><tr>{["Código","Nombre","Tipo","Sucursal","Área","Ubicación","Marca","Modelo","Estado","Criticidad","Acciones"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>

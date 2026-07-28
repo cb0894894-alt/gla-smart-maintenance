@@ -1,5 +1,10 @@
 export type Branch = { idSucursal: string; codigo: string; nombre: string; direccion: string; ciudad: string; estadoRegion: string; responsable: string; telefono: string; estado: string };
 export type Area = { idArea: string; idSucursal: string; nombre: string; estado: string };
+export type BranchCatalogs = {
+  branches: Branch[];
+  areas: Area[];
+  failed: ("sucursales" | "areas")[];
+};
 
 async function request(action: string, init?: RequestInit) {
   const url = new URL("/api/google-sheets", window.location.origin); url.searchParams.set("accion", action);
@@ -44,6 +49,33 @@ export async function fetchAreas(): Promise<Area[]> {
     return true;
   });
 }
+
+async function retry<T>(operation: () => Promise<T>, attempts = 2): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (attempts <= 1) throw error;
+    return retry(operation, attempts - 1);
+  }
+}
+
+export async function fetchBranchCatalogs(): Promise<BranchCatalogs> {
+  const [branchesResult, areasResult] = await Promise.allSettled([
+    retry(fetchBranches),
+    retry(fetchAreas),
+  ]);
+  const failed: BranchCatalogs["failed"] = [];
+  if (branchesResult.status === "rejected") failed.push("sucursales");
+  if (areasResult.status === "rejected") failed.push("areas");
+
+  return {
+    branches:
+      branchesResult.status === "fulfilled" ? branchesResult.value : [],
+    areas: areasResult.status === "fulfilled" ? areasResult.value : [],
+    failed,
+  };
+}
+
 export async function saveBranch(input: Partial<Branch>) { return request("guardarSucursal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "guardarSucursal", ...input }) }); }
 export async function saveArea(input: Partial<Area>) { return request("guardarArea", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "guardarArea", ...input }) }); }
 export async function changeBranchStatus(idSucursal: string, estado: "Activo" | "Inactivo") { return request("cambiarEstadoSucursal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "cambiarEstadoSucursal", idSucursal, estado }) }); }
