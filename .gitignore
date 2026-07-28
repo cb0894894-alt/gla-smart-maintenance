@@ -9,7 +9,9 @@ coverage
 .DS_Store
 *.log
 
-# next-pwa generated assets
+# Serwist generated assets
 apps/web/public/sw.js
+apps/web/public/swe-worker-*.js
+# Legacy next-pwa build artifacts may remain in an existing checkout.
 apps/web/public/workbox-*.js
 .npm-cache/
