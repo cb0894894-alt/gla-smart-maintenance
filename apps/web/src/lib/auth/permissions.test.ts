@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   can,
   canAccessPath,
+  canPerformApiAction,
   getDefaultPathForRole,
   getPermissions,
   normalizeEmail,
@@ -15,6 +16,16 @@ describe("role authorization", () => {
     expect(can("Administrador", "usuarios:write")).toBe(true);
     expect(canAccessPath("Administrador", "/usuarios")).toBe(true);
   });
+  it.each(["Administrador", "Supervisor", "Técnico", "Consulta"])(
+    "allows %s to read the branch catalogs required by Activos",
+    (role) => {
+      expect(canPerformApiAction(role, "sucursales")).toBe(true);
+      expect(canPerformApiAction(role, "areas")).toBe(true);
+      expect(canPerformApiAction(role, "guardarSucursal")).toBe(
+        role === "Administrador",
+      );
+    },
+  );
   it("prevents Supervisor and Técnico from user administration", () => {
     expect(can("Supervisor", "usuarios:read")).toBe(false);
     expect(canAccessPath("Técnico", "/usuarios")).toBe(false);
