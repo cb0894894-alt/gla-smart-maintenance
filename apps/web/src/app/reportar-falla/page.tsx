@@ -36,6 +36,7 @@ const initialForm: FailureReportInput = {
 
 export default function FailureReportPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [assetSearch, setAssetSearch] = useState("");
   const [isLoadingAssets, setIsLoadingAssets] = useState(true);
   const [assetError, setAssetError] = useState<string | null>(null);
   const [form, setForm] = useState<FailureReportInput>(initialForm);
@@ -68,6 +69,7 @@ export default function FailureReportPage() {
           (asset) => asset.codigo === requestedAssetCode,
         );
         if (requestedAsset) {
+          setAssetSearch(getAssetLabel(requestedAsset));
           setForm((current) => ({
             ...current,
             assetCode: requestedAsset.codigo,
@@ -90,6 +92,27 @@ export default function FailureReportPage() {
     () => assets.find((asset) => asset.codigo === form.assetCode),
     [assets, form.assetCode],
   );
+  const matchingAssets = useMemo(() => {
+    const query = normalizeSearch(assetSearch);
+    if (query.length < 2) return [];
+    const tokens = query.split(" ").filter(Boolean);
+    return assets.filter((asset) => {
+      const searchable = normalizeSearch(
+        [
+        asset.codigo,
+        asset.nombre,
+        asset.sucursal,
+        asset.area,
+        asset.ubicacion,
+        asset.marca,
+        asset.modelo,
+        asset.tipo,
+        ].join(" "),
+      );
+      return tokens.every((token) => searchable.includes(token));
+    });
+  }, [assetSearch, assets]);
+  const visibleAssets = matchingAssets.slice(0, 50);
   const openOrders = useMemo(
     () => getOpenWorkOrdersForAsset(orders, form.assetCode),
     [orders, form.assetCode],
@@ -107,8 +130,9 @@ export default function FailureReportPage() {
       });
   }, []);
 
-  function updateAsset(assetCode: string) {
+  function selectAsset(assetCode: string) {
     const asset = assets.find((item) => item.codigo === assetCode);
+    if (asset) setAssetSearch(getAssetLabel(asset));
     setForm((current) => ({
       ...current,
       assetCode,
@@ -225,18 +249,38 @@ export default function FailureReportPage() {
             >
               <div className="grid gap-4 lg:grid-cols-2">
                 <Field label="Activo" error={errors.assetCode}>
+                  <input
+                    aria-label="Buscar activo"
+                    className="field"
+                    placeholder="Buscar por código, nombre, sucursal, área, marca o modelo"
+                    value={assetSearch}
+                    disabled={isLoadingAssets || isSubmitting}
+                    onChange={(event) => {
+                      setAssetSearch(event.target.value);
+                      if (form.assetCode) selectAsset("");
+                    }}
+                  />
                   <select
+                    aria-label="Activo seleccionado"
                     className="field"
                     value={form.assetCode}
-                    disabled={isLoadingAssets || isSubmitting}
-                    onChange={(event) => updateAsset(event.target.value)}
+                    disabled={
+                      isLoadingAssets ||
+                      isSubmitting ||
+                      normalizeSearch(assetSearch).length < 2
+                    }
+                    onChange={(event) => selectAsset(event.target.value)}
                   >
                     <option value="">
                       {isLoadingAssets
                         ? "Cargando activos..."
-                        : "Selecciona un activo"}
+                        : normalizeSearch(assetSearch).length < 2
+                          ? "Escribe al menos 2 caracteres"
+                          : matchingAssets.length
+                            ? `Selecciona entre ${matchingAssets.length} resultados`
+                            : "No se encontraron activos"}
                     </option>
-                    {assets.map((asset, index) => (
+                    {visibleAssets.map((asset, index) => (
                       <option
                         key={`${asset.codigo}-${index}`}
                         value={asset.codigo}
@@ -245,6 +289,12 @@ export default function FailureReportPage() {
                       </option>
                     ))}
                   </select>
+                  {matchingAssets.length > 50 ? (
+                    <span className="text-xs text-muted-foreground">
+                      Mostrando los primeros 50 resultados. Escribe más para
+                      precisar la búsqueda.
+                    </span>
+                  ) : null}
                 </Field>
                 <ReadOnly
                   label="Fecha y hora automática"
@@ -379,6 +429,16 @@ function ReadOnly({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   );
+}
+
+function normalizeSearch(value?: string) {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .toLocaleLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 function Message({ tone, text }: { tone: "success" | "error"; text: string }) {
