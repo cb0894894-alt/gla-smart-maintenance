@@ -19,6 +19,13 @@ export const WORK_ORDER_STATUSES = [
   "Cerrada",
   "Cancelada",
 ] as const;
+export const WORK_ORDER_QUICK_STATUSES = [
+  "Abierta",
+  "Asignada",
+  "En proceso",
+  "En espera",
+  "Cancelada",
+] as const;
 
 export type WorkOrderPriority = (typeof WORK_ORDER_PRIORITIES)[number];
 export type EquipmentCondition = (typeof EQUIPMENT_CONDITIONS)[number];
@@ -328,9 +335,14 @@ export function validateStatusUpdate(input: UpdateWorkOrderStatusInput) {
   if (!input.folio) return "Selecciona una OT.";
   if (!WORK_ORDER_STATUSES.includes(input.estado))
     return "Selecciona un estado válido.";
-  if (input.estado === "Cerrada" && !input.notaCierre?.trim())
-    return "Para cerrar una OT debes capturar una nota breve de cierre.";
+  if (input.estado === "Cerrada")
+    return "Para cerrar una OT usa el cierre completo con trabajo, técnico, tiempos y costos.";
   return null;
+}
+
+export function canManageOpenWorkOrder(order: Pick<WorkOrder, "estado">) {
+  const status = order.estado.trim().toLowerCase();
+  return status !== "cerrada" && status !== "cancelada";
 }
 export async function createWorkOrderFromFailure(input: FailureReportInput) {
   const response = await fetch(getApiUrl(), {

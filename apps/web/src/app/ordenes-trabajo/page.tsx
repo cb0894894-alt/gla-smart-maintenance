@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   calculateCloseWorkOrderTotal,
+  canManageOpenWorkOrder,
   closeWorkOrder,
   filterWorkOrders,
   fetchWorkOrders,
   getWorkOrderIndicators,
   updateWorkOrderStatus,
   WORK_ORDER_PRIORITIES,
+  WORK_ORDER_QUICK_STATUSES,
   WORK_ORDER_STATUSES,
   type CloseWorkOrderInput,
   type WorkOrder,
@@ -31,8 +33,7 @@ export default function WorkOrdersPage() {
     [area, setArea] = useState(""),
     [page, setPage] = useState(1);
   const [selected, setSelected] = useState<WorkOrder | null>(null),
-    [nextStatus, setNextStatus] = useState<WorkOrderStatus>("Abierta"),
-    [closingNote, setClosingNote] = useState("");
+    [nextStatus, setNextStatus] = useState<WorkOrderStatus>("Abierta");
   const [closeOrder, setCloseOrder] = useState<WorkOrder | null>(null),
     [closeForm, setCloseForm] = useState<CloseWorkOrderInput>(emptyCloseForm()),
     [closeMessage, setCloseMessage] = useState<string | null>(null),
@@ -82,7 +83,6 @@ export default function WorkOrdersPage() {
   useEffect(() => {
     if (selected)
       setNextStatus((selected.estado || "Abierta") as WorkOrderStatus);
-    setClosingNote("");
     setUpdateError(null);
     setUpdateMessage(null);
   }, [selected]);
@@ -148,7 +148,6 @@ export default function WorkOrdersPage() {
       await updateWorkOrderStatus({
         folio: selected.folio,
         estado: nextStatus,
-        notaCierre: closingNote,
       });
       setUpdateMessage(`Estado actualizado a ${nextStatus}.`);
       await loadOrders();
@@ -157,8 +156,6 @@ export default function WorkOrdersPage() {
           ? {
               ...current,
               estado: nextStatus,
-              notaCierre:
-                nextStatus === "Cerrada" ? closingNote : current.notaCierre,
             }
           : current,
       );
@@ -303,7 +300,7 @@ export default function WorkOrdersPage() {
                             >
                               Detalle
                             </button>
-                            {order.estado !== "Cerrada" ? (
+                            {canManageOpenWorkOrder(order) ? (
                               <button
                                 className="rounded-xl bg-primary px-3 py-2 font-semibold text-primary-foreground hover:opacity-90"
                                 onClick={() => setCloseOrder(order)}
@@ -482,23 +479,15 @@ export default function WorkOrdersPage() {
                     </div>
                   ))}
                 </div>
-                <div className="rounded-2xl border border-white/10 p-4">
+                {canManageOpenWorkOrder(selected) ? <div className="rounded-2xl border border-white/10 p-4">
                   <h3 className="font-bold">Actualizar estado</h3>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <Select
                       value={nextStatus}
                       onChange={(v) => setNextStatus(v as WorkOrderStatus)}
                       label="Estado"
-                      options={WORK_ORDER_STATUSES}
+                      options={WORK_ORDER_QUICK_STATUSES}
                     />
-                    {nextStatus === "Cerrada" ? (
-                      <textarea
-                        className="field min-h-24"
-                        placeholder="Nota breve de cierre obligatoria"
-                        value={closingNote}
-                        onChange={(e) => setClosingNote(e.target.value)}
-                      />
-                    ) : null}
                   </div>
                   {updateError ? (
                     <Message tone="error" text={updateError} />
@@ -513,7 +502,7 @@ export default function WorkOrdersPage() {
                   >
                     {isUpdating ? "Actualizando..." : "Guardar estado"}
                   </button>
-                </div>
+                </div> : <Message tone="success" text={`La orden está ${selected.estado.toLowerCase()} y ya no admite cambios operativos.`} />}
                 <button
                   className="rounded-xl border border-white/10 px-4 py-2"
                   onClick={() => setSelected(null)}
