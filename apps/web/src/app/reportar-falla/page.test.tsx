@@ -15,6 +15,18 @@ const assets = [
     marca: "GLA",
     estado: "Operando",
   },
+  {
+    codigo: "CMP-02",
+    nombre: "Compresor norte",
+    area: "Servicios",
+    sucursal: "Norte",
+    ubicacion: "Cuarto de máquinas",
+    criticidad: "Media",
+    tipo: "Compresor",
+    marca: "Atlas",
+    modelo: "X2",
+    estado: "Operando",
+  },
 ];
 const mocks = vi.hoisted(() => ({
   fetchAssets: vi.fn(),
@@ -68,8 +80,26 @@ describe("FailureReportPage", () => {
     render(<FailureReportPage />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/Activo/)).toHaveValue("BOM-01");
+      expect(screen.getByLabelText("Activo seleccionado")).toHaveValue(
+        "BOM-01",
+      );
     });
+  });
+
+  it("searches assets by code, name, branch, area, brand or model", async () => {
+    render(<FailureReportPage />);
+    await waitFor(() => expect(mocks.fetchAssets).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText("Buscar activo"), {
+      target: { value: "Atlas" },
+    });
+
+    expect(
+      screen.getByRole("option", { name: "CMP-02 · Compresor norte" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "BOM-01 · Bomba principal" }),
+    ).not.toBeInTheDocument();
   });
 
   it("offers the open orders for the asset received from a QR link", async () => {
@@ -105,7 +135,7 @@ describe("FailureReportPage", () => {
 
   it("shows clear validation messages for required fields", async () => {
     render(<FailureReportPage />);
-    await screen.findByText("BOM-01 · Bomba principal");
+    await waitFor(() => expect(mocks.fetchAssets).toHaveBeenCalled());
 
     fireEvent.click(
       screen.getByRole("button", { name: "Crear Orden de Trabajo" }),
@@ -134,9 +164,12 @@ describe("FailureReportPage", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<FailureReportPage />);
-    await screen.findByText("BOM-01 · Bomba principal");
+    await waitFor(() => expect(mocks.fetchAssets).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByLabelText(/Activo/), {
+    fireEvent.change(screen.getByLabelText("Buscar activo"), {
+      target: { value: "Bomba principal" },
+    });
+    fireEvent.change(screen.getByLabelText("Activo seleccionado"), {
       target: { value: "BOM-01" },
     });
     fireEvent.change(screen.getByLabelText(/Persona que reporta/), {
@@ -171,9 +204,12 @@ describe("FailureReportPage", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<FailureReportPage />);
-    await screen.findByText("BOM-01 · Bomba principal");
+    await waitFor(() => expect(mocks.fetchAssets).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByLabelText(/Activo/), {
+    fireEvent.change(screen.getByLabelText("Buscar activo"), {
+      target: { value: "BOM-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Activo seleccionado"), {
       target: { value: "BOM-01" },
     });
     fireEvent.change(screen.getByLabelText(/Persona que reporta/), {
