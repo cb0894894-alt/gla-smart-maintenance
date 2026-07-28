@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCloseWorkOrderPayload,
   calculateCloseWorkOrderTotal,
+  canManageOpenWorkOrder,
   closeWorkOrder,
   getOpenWorkOrdersForAsset,
   filterWorkOrders,
@@ -257,10 +258,22 @@ describe("work orders Google Sheets helpers", () => {
     await expect(closeWorkOrder(validCloseInput())).rejects.toThrow(error);
   });
 
-  it("requires a closing note when closing", () => {
+  it("requires the complete closure flow instead of a quick status change", () => {
     expect(
-      validateStatusUpdate({ folio: "OT-1", estado: "Cerrada" }),
-    ).toContain("nota breve");
+      validateStatusUpdate({
+        folio: "OT-1",
+        estado: "Cerrada",
+        notaCierre: "Intento de cierre rápido",
+      }),
+    ).toContain("cierre completo");
+  });
+  it.each([
+    ["Abierta", true],
+    ["En proceso", true],
+    ["Cerrada", false],
+    ["Cancelada", false],
+  ])("allows operational actions for %s: %s", (estado, expected) => {
+    expect(canManageOpenWorkOrder({ estado })).toBe(expected);
   });
   it("updates status through the API and avoids invalid submissions", async () => {
     process.env.NEXT_PUBLIC_API_URL =
